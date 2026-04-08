@@ -1,21 +1,31 @@
-/* ── PRODUCT DETAIL ───────────────────────────────────────── */
+// ── PRODUCT DETAIL ────────────────────────────────────────
 async function renderProductDetail(id) {
   const app = document.getElementById('app');
-  const p = await api('/api/products/' + id);
-  if (p.error) { app.innerHTML = '<div class="page-wrap"><h2>Product not found</h2></div>'; return; }
-  const imgs = p.images && p.images.length > 0 ? p.images : ['/images/p1.png'];
+  const p = await api(`/api/products/${id}`);
+  if (p.error) return app.innerHTML = `<div class="container" style="padding:10rem 0;text-align:center;"><h2>Product Not Found</h2><button class="btn-primary" onclick="navigate('/products')">Back to Shop</button></div>`;
+
+  const discountVal = p.mrp ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0;
+
   app.innerHTML = `
-  <div class="product-page">
-    <div class="back-link" onclick="history.back()"><i class="fas fa-arrow-left"></i> Back</div>
-    <div class="product-detail">
+  <div class="product-detail-container container reveal">
+    <div class="product-detail-grid">
+      <!-- LEFT: IMAGES -->
       <div class="product-gallery">
-        <div class="gallery-main" id="main-img-wrap"><img id="main-img" src="${imgs[0]}" alt="${p.name}"/></div>
-        <div class="gallery-thumbs">${imgs.map((img,i)=>`<div class="thumb ${i===0?'active':''}" onclick="setThumb(this,'${img}')"><img src="${img}" alt=""/></div>`).join('')}</div>
+        <div class="main-img-wrap">
+          <img id="main-product-img" src="${p.images[0]}" alt="${p.name}"/>
+          ${discountVal ? `<span class="badge-large">${discountVal}% OFF</span>` : ''}
+        </div>
+        <div class="thumb-grid">
+          ${p.images.map((img, i) => `
+            <div class="thumb ${i === 0 ? 'active' : ''}" onclick="changeMainImg('${img}', this)">
+              <img src="${img}" alt="Thumbnail ${i + 1}"/>
+            </div>
+          `).join('')}
+        </div>
       </div>
+
+      <!-- RIGHT: INFO -->
       <div class="product-info">
-        <span style="font-size:.75rem;text-transform:uppercase;letter-spacing:.12em;color:var(--rose);font-weight:600;">${p.category}</span>
-        <h1>${p.name}</h1>
-        <div class="product-rating" style="margin-bottom:1rem;">
           <span class="stars" style="font-size:1rem;">${renderStars(p.rating||0)}</span>
           ${p.reviews?.length ? `<span class="rating-count" style="margin-left:6px;">(${p.reviews.length} reviews)</span>` : ''}
         </div>

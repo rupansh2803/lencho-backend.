@@ -133,11 +133,13 @@ async function adminDashboard() {
 async function adminOrders() {
   const orders = await api('/api/admin/orders');
   const statusOpts = ['placed','confirmed','shipped','out_for_delivery','delivered','cancelled'].map(s=>`<option value="${s}">${s.replace('_',' ')}</option>`).join('');
+  const partners = ['Shiprocket','Delhivery','BlueDart','Ecom Express','XpressBees','Others'];
+  
   document.getElementById('admin-content').innerHTML = `
   <div class="admin-header"><h1 class="admin-page-title">Manage Orders (${orders.length})</h1></div>
   <div class="admin-table-wrap">
     <table>
-      <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Amount</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Amount</th><th>Status</th><th>Partner</th><th>Tracking</th><th>Actions</th></tr></thead>
       <tbody>${orders.map(o=>`
       <tr>
         <td><b style="color:var(--rose-dark);">${o.id}</b></td>
@@ -145,13 +147,17 @@ async function adminOrders() {
         <td>${o.userName}</td>
         <td>${o.items.length} item${o.items.length>1?'s':''}</td>
         <td><b>${formatCurrency(o.grandTotal)}</b></td>
-        <td>${o.paymentMethod?.toUpperCase()}</td>
         <td id="status-${o.id}"><span class="order-status-badge status-${o.status}" style="font-size:.7rem;">${o.status.replace('_',' ')}</span></td>
         <td>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+           <select id="dp-${o.id}" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;">
+             <option value="">Partner</option>
+             ${partners.map(p=>`<option value="${p}" ${o.deliveryPartner===p?'selected':''}>${p}</option>`).join('')}
+           </select>
+        </td>
+        <td><input id="tn-${o.id}" value="${o.trackingNumber||''}" placeholder="Track#" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;"/></td>
+        <td>
+          <div style="display:flex;gap:4px;">
             <select id="new-status-${o.id}" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;">${statusOpts}</select>
-            <input id="dp-${o.id}" placeholder="Courier" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;"/>
-            <input id="tn-${o.id}" placeholder="Track#" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;"/>
             <button class="btn-primary btn-sm" onclick="updateOrderStatus('${o.id}')">Update</button>
             <button class="btn-outline btn-sm" onclick="adminViewInvoice('${o.id}')"><i class="fas fa-file-invoice"></i></button>
           </div>

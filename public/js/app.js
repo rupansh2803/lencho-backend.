@@ -172,6 +172,13 @@ function toggleDesc(btn) {
 }
 
 
+function toggleSpec(el) {
+  const item = el.closest('.spec-item');
+  const isActive = item.classList.contains('active');
+  document.querySelectorAll('.spec-item').forEach(i => i.classList.remove('active'));
+  if (!isActive) item.classList.add('active');
+}
+
 async function handleLogout() {
   await api('/api/logout', { method: 'POST' });
   currentUser = null;
@@ -263,15 +270,17 @@ function formatDate(d) { return new Date(d).toLocaleDateString('en-IN', { day: '
 
 // ── PRODUCT CARD ─────────────────────────────────────────
 function productCardHTML(p) {
+  const secondaryImg = p.images[1] || p.images[0];
   return `
   <div class="product-card reveal">
-    <div class="product-img-wrap">
+    <div class="product-img-wrap" onclick="navigate('/product/${p.id}')">
       <img class="product-img" src="${p.images[0]}" alt="${p.name}" loading="lazy"/>
+      <img class="product-img img-hover" src="${secondaryImg}" alt="${p.name}" loading="lazy"/>
       ${p.discount ? `<span class="product-badge">${p.discount}% OFF</span>` : ''}
-      <button class="product-wish" onclick="toggleWishlist('${p.id}',this)" title="Wishlist"><i class="fas fa-heart"></i></button>
+      <button class="product-wish" onclick="event.stopPropagation(); toggleWishlist('${p.id}',this)" title="Wishlist"><i class="fas fa-heart"></i></button>
     </div>
     <div class="product-body">
-      <div class="product-name">${p.name}</div>
+      <div class="product-name" onclick="navigate('/product/${p.id}')">${p.name}</div>
       <div class="product-rating">
         <span class="stars">${renderStars(p.rating || 0)}</span>
         ${p.reviews?.length ? `<span class="rating-count">(${p.reviews.length})</span>` : ''}
@@ -282,8 +291,9 @@ function productCardHTML(p) {
         ${p.discount ? `<span class="price-off">${p.discount}% off</span>` : ''}
       </div>
       <div class="product-actions" style="margin-top:.75rem;">
-        <button class="btn-primary btn-sm" onclick="addToCart('${p.id}')" style="flex:1;"><i class="fas fa-shopping-bag"></i> Add</button>
-        <button class="btn-outline btn-sm" onclick="navigate('/product/${p.id}')" style="flex:1;">View</button>
+        <button class="btn-primary btn-sm" onclick="addToCart('${p.id}')" style="flex:1;">
+          <i class="fas fa-shopping-bag"></i> Add to Cart
+        </button>
       </div>
     </div>
   </div>`;
@@ -293,103 +303,97 @@ function productCardHTML(p) {
 async function renderHome() {
   const app = document.getElementById('app');
   app.innerHTML = `
-  <!-- HERO -->
-  <section class="hero">
-    <div class="hero-bg"><img class="hero-img" src="/images/hero.png" alt="Lencho Jewellery" onerror="this.src='https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1600&q=80'"/></div>
-    <div class="hero-particles" id="particles"></div>
-    <div class="hero-content">
-      <div class="hero-badge">✦ NEW COLLECTION 2026 ✦</div>
-      <h1 class="hero-title">Elegance That<br/><span>Defines You</span></h1>
-      <p class="hero-sub">Premium Artificial Jewellery for Every Occasion.<br/>Crafted with love, designed for the modern woman.</p>
+  <!-- HERO PREMIUM -->
+  <section class="hero-premium">
+    <div class="hero-p-left reveal-left">
+      <div class="hero-badge" style="color:var(--gold-light);background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.2);padding:8px 20px;border-radius:99px;display:inline-block;margin-bottom:1.5rem;letter-spacing:.15em;font-size:.8rem;">✦ ESTABLISHED 2026 ✦</div>
+      <h1 class="hero-p-title">Luxury Look<br/><span>Under ₹199</span></h1>
+      <p class="hero-p-sub">Dazzle in premium artificial jewellery crafted for the modern, elegant woman. High quality, zero tarnish, maximum style.</p>
       <div class="hero-btns">
-        <button class="btn-gold" onclick="navigate('/products')">Shop Now <i class="fas fa-arrow-right"></i></button>
-        <button class="btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff;" onclick="document.querySelector('.categories').scrollIntoView({behavior:'smooth'})">Explore Collection</button>
+        <button class="btn-gold" style="padding:16px 40px;font-size:1rem;" onclick="navigate('/products')">Shop Best Sellers <i class="fas fa-arrow-right"></i></button>
       </div>
     </div>
-    <div class="hero-scroll"><span>SCROLL</span><div class="hero-scroll-line"></div></div>
+    <div class="hero-p-right reveal">
+      <img class="hero-p-img" src="/images/hero_model.png" alt="Lencho Luxury Collection"/>
+    </div>
   </section>
+
+  <!-- TRUST HUB -->
+  <div class="trust-hub">
+    <div class="trust-item"><i class="fas fa-truck-fast"></i> <span>Free Delivery</span></div>
+    <div class="trust-item"><i class="fas fa-wallet"></i> <span>Cash on Delivery</span></div>
+    <div class="trust-item"><i class="fas fa-rotate-left"></i> <span>Easy 7-Day Returns</span></div>
+    <div class="trust-item"><i class="fas fa-shield-check"></i> <span>100% Authentic</span></div>
+  </div>
 
   <!-- MARQUEE -->
   <div class="marquee-strip">
     <div class="marquee-inner">
-      ${Array(8).fill('✦ FREE SHIPPING ON ₹999+ &nbsp;&nbsp; ✦ USE CODE FIRST10 FOR 10% OFF &nbsp;&nbsp; ✦ EASY 7-DAY RETURNS &nbsp;&nbsp; ✦ PREMIUM QUALITY GUARANTEED &nbsp;&nbsp;').join('')}
+      ${Array(8).fill('✦ BUY 2 GET 1 FREE – USE CODE: B2G1 &nbsp;&nbsp; ✦ PRE-BOOK FOR AKSHAYA TRITIYA &nbsp;&nbsp; ✦ FLAT 50% OFF ON BRIDAL SETS &nbsp;&nbsp;').join('')}
     </div>
   </div>
-
-  <!-- FEATURES -->
-  <section style="background:var(--beige);">
-
-    <div class="features-grid">
-      <div class="feature-card reveal"><div class="feature-icon">🚚</div><div class="feature-title">Free Delivery</div><div class="feature-desc">On orders above ₹999 across India</div></div>
-      <div class="feature-card reveal"><div class="feature-icon">💎</div><div class="feature-title">Premium Quality</div><div class="feature-desc">Anti-tarnish, hypoallergenic materials</div></div>
-      <div class="feature-card reveal"><div class="feature-icon">↩️</div><div class="feature-title">Easy Returns</div><div class="feature-desc">7-day hassle-free return policy</div></div>
-      <div class="feature-card reveal"><div class="feature-icon">🔒</div><div class="feature-title">Secure Payment</div><div class="feature-desc">100% safe UPI, Card & COD</div></div>
-    </div>
-  </section>
 
   <!-- CATEGORIES -->
   <section class="categories">
     <div class="section-header reveal">
       <div class="section-eyebrow">Shop by Category</div>
-      <h2 class="section-title">Our Collections</h2>
+      <h2 class="section-title">Exclusive Collections</h2>
       <div class="divider"></div>
-      <p class="section-desc">Discover our curated range of premium jewellery crafted for every occasion</p>
+      <p class="section-desc">Handpicked designs that define elegance and sophistication</p>
     </div>
     <div class="categories-grid">
       <div class="cat-card reveal-left" onclick="navigate('/products?category=earrings')">
-        <img class="cat-img" src="/images/earrings.png" alt="Earrings" onerror="this.src='https://images.unsplash.com/photo-1599643477877-530eb83abc8e?auto=format&fit=crop&w=400&q=80'"/>
+        <img class="cat-img" src="/images/earrings.png" alt="Earrings" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
         <div class="cat-content"><div class="cat-name">Earrings</div><button class="cat-btn">Shop Now</button></div>
       </div>
       <div class="cat-card reveal" onclick="navigate('/products?category=necklace')">
-        <img class="cat-img" src="/images/necklace.png" alt="Necklace" onerror="this.src='https://images.unsplash.com/photo-1599643478514-411db1fb6d22?auto=format&fit=crop&w=400&q=80'"/>
+        <img class="cat-img" src="/images/necklace.png" alt="Necklace" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
         <div class="cat-content"><div class="cat-name">Necklace</div><button class="cat-btn">Shop Now</button></div>
       </div>
       <div class="cat-card reveal-right" onclick="navigate('/products?category=toe-rings')">
-        <img class="cat-img" src="/images/toe-rings.png" alt="Toe Rings" onerror="this.src='https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=400&q=80'"/>
+        <img class="cat-img" src="/images/toe-rings.png" alt="Toe Rings" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
         <div class="cat-content"><div class="cat-name">Toe Rings</div><button class="cat-btn">Shop Now</button></div>
       </div>
       <div class="cat-card reveal-right" onclick="navigate('/products?category=payal')" style="animation-delay:.2s">
-        <img class="cat-img" src="/images/payal.png" alt="Payal" onerror="this.src='https://images.unsplash.com/photo-1599643477877-530eb83abc8e?auto=format&fit=crop&w=400&q=80'"/>
+        <img class="cat-img" src="/images/payal.png" alt="Payal" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
         <div class="cat-content"><div class="cat-name">Payal</div><button class="cat-btn">Shop Now</button></div>
       </div>
     </div>
   </section>
 
-  <!-- VIDEO SHOWCASE SECTION -->
-  <section class="video-section reveal">
-    <div class="section-header" style="margin-bottom:2.5rem;">
-      <div class="section-eyebrow" style="color:var(--gold-light);">✦ OUR STORY ✦</div>
-      <h2 class="section-title" style="color:#fff;font-size:2.4rem;">Crafted with Passion</h2>
+  <!-- FEATURED PRODUCTS -->
+  <section style="background:var(--beige);">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">Bestsellers</div>
+      <h2 class="section-title">🔥 Trending Now</h2>
       <div class="divider"></div>
-      <p style="color:rgba(255,255,255,.65);max-width:560px;margin:.75rem auto 0;font-size:1rem;line-height:1.7;" class="desc-collapsed">
-        Every piece is handcrafted with love — see how we create jewellery that tells your story. Our designers use premium materials to ensure that every necklace, earring, and ring is anti-tarnish and comfortable for all-day wear.
-      </p>
-      <span class="see-more-btn" onclick="toggleDesc(this)" style="color:var(--gold-light);">See More</span>
     </div>
-    <div class="video-container" style="background:#000; overflow:hidden; position:relative; min-height:450px;">
-      <video autoplay muted loop playsinline style="width:100%; height:100%; object-fit:cover; position:absolute; inset:0; opacity:0.8;">
+    <div class="products-grid" id="featured-grid"></div>
+    <div style="text-align:center;margin-top:3rem;"><button class="btn-outline" onclick="navigate('/products')">View All Collections <i class="fas fa-arrow-right"></i></button></div>
+  </section>
+
+  <!-- VIDEO STORY -->
+  <section class="video-section reveal">
+    <div class="section-header" style="text-align:center;">
+      <div class="section-eyebrow" style="color:var(--gold-light);">✦ OUR CRAFT ✦</div>
+      <h2 class="section-title" style="color:#fff;">Crafted with Passion</h2>
+      <div class="divider" style="margin:1rem auto;"></div>
+    </div>
+    <div class="video-container" style="background:#000; overflow:hidden; position:relative; min-height:450px; border-radius:32px;">
+      <video autoplay muted loop playsinline style="width:100%; height:100%; object-fit:cover; position:absolute; inset:0; opacity:0.6;">
         <source src="https://player.vimeo.com/external/494163966.sd.mp4?s=43c3933ae37d113426742533cdaefc9b46571588&profile_id=165" type="video/mp4">
-        Your browser does not support the video tag.
       </video>
-      <div style="position:relative;z-index:2;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);text-align:center;">
-        <div class="reveal">
-          <i class="fas fa-play-circle" style="font-size:4rem;color:var(--gold-light);margin-bottom:1rem;opacity:0.9;cursor:pointer;"></i>
-          <h3 style="font-family:'Playfair Display',serif;font-size:2rem;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,0.5);">Handcrafted Excellence</h3>
-          <p style="color:rgba(255,255,255,0.9);max-width:400px;margin:0 auto;font-size:.9rem;">Watch how we blend tradition with modern design.</p>
+      <div style="position:relative;z-index:2;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);">
+        <div style="text-align:center;">
+          <i class="fas fa-play-circle" style="font-size:5rem;color:var(--gold-light);margin-bottom:1.5rem;cursor:pointer;filter:drop-shadow(0 0 20px rgba(0,0,0,0.5));"></i>
+          <h3 style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#fff;margin:0;">Jewellery That Speaks</h3>
         </div>
       </div>
     </div>
-    <div style="margin-top:2.5rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;position:relative;z-index:10;">
-      <button class="btn-gold" style="padding:14px 32px;font-size:.95rem;position:relative;z-index:10;" onclick="navigate('/products')">
-        <i class="fas fa-gem" style="margin-right:.5rem;"></i>Shop the Collection
-      </button>
-      <button class="btn-outline" style="padding:14px 32px;border-color:rgba(255,255,255,.3);color:#fff;font-size:.95rem;position:relative;z-index:10;" onclick="navigate('/products?category=sets')">
-        <i class="fas fa-ring" style="margin-right:.5rem;"></i>Bridal Sets
-      </button>
     </div>
   </section>
 
