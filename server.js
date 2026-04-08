@@ -877,6 +877,18 @@ app.get('/api/ai/trending', async (req, res) => {
 // ─── PAGE ROUTES ──────────────────────────────────────────────
 const sendIndex = (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'));
 app.get('/', sendIndex);
+app.get('/debug', (req, res) => {
+  res.send(`
+    <div style="font-family:sans-serif;padding:2rem;text-align:center;">
+      <h1 style="color:#c9748f;">✦ Lencho V3 Live Debug ✦</h1>
+      <p><b>Time:</b> ${new Date().toLocaleString('en-IN')}</p>
+      <p><b>Status:</b> Code is Live and Syncing!</p>
+      <hr style="width:50px;margin:2rem auto;border:1px solid #eee;"/>
+      <button onclick="location.href='/'" style="padding:10px 20px;background:#c9748f;color:#fff;border:none;border-radius:5px;cursor:pointer;">Go to Home</button>
+    </div>
+  `);
+});
+
 ['products', 'product', 'cart', 'checkout', 'orders', 'track', 'dashboard', 'admin', 'login', 'signup', 'wishlist']
   .forEach(page => { app.get(`/${page}`, sendIndex); app.get(`/${page}/:sub`, sendIndex); });
 const PORT = process.env.PORT || 3005;
