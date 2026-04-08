@@ -921,6 +921,30 @@ tr:hover td{background:var(--beige)}
   .product-card { pointer-events: auto; }
 }
 
+/* ── CENTERED HERO STYLES ───────────────────────────────── */
+.hero-p-centered {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto;
+  z-index: 20;
+}
+.hero-p-centered .hero-p-title {
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  text-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.hero-p-centered .hero-p-sub {
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 1.25rem;
+  opacity: 0.95;
+}
+.hero-p-centered .hero-btns {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
 @media (max-width: 768px) {
   .hero-premium { flex-direction: column; text-align: center; min-height: auto; padding-bottom: 3rem; }
   .hero-p-left { order: 2; padding: 2rem 5%; }

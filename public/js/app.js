@@ -303,18 +303,17 @@ function productCardHTML(p) {
 async function renderHome() {
   const app = document.getElementById('app');
   app.innerHTML = `
-  <!-- HERO PREMIUM -->
-  <section class="hero-premium">
-    <div class="hero-p-left reveal-left">
-      <div class="hero-badge" style="color:var(--gold-light);background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.2);padding:8px 20px;border-radius:99px;display:inline-block;margin-bottom:1.5rem;letter-spacing:.15em;font-size:.8rem;">✦ ESTABLISHED 2026 ✦</div>
-      <h1 class="hero-p-title">Luxury Look<br/><span>Under ₹199</span></h1>
-      <p class="hero-p-sub">Dazzle in premium artificial jewellery crafted for the modern, elegant woman. High quality, zero tarnish, maximum style.</p>
-      <div class="hero-btns">
-        <button class="btn-gold" style="padding:16px 40px;font-size:1rem;" onclick="navigate('/products')">Shop Best Sellers <i class="fas fa-arrow-right"></i></button>
+  <!-- HERO PREMIUM CENTERED -->
+  <section class="hero-premium" style="background: url('/images/premium_hero.png') center/cover no-repeat; justify-content: center; text-align: center;">
+    <div style="position:absolute; inset:0; background:rgba(0,0,0,0.55); z-index:1;"></div>
+    <div class="hero-p-centered reveal" style="position:relative; z-index:2;">
+      <div class="hero-badge" style="color:var(--gold-light);background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);padding:10px 24px;border-radius:99px;display:inline-block;margin-bottom:1.5rem;letter-spacing:.25em;font-size:.85rem;backdrop-filter:blur(5px);">ESTABLISHED 2026</div>
+      <h1 class="hero-p-title" style="margin-bottom:1.5rem;">Luxury Redefined<br/><span style="color:var(--gold-light); font-family:'Playfair Display',serif; font-style:italic;">Elite Craftsmanship</span></h1>
+      <p class="hero-p-sub" style="max-width:700px; color:rgba(255,255,255,0.9); font-size:1.2rem; line-height:1.7;">Indulge in the finest artificial jewellery curated for moments that matter. Zero tarnish, hypoallergenic, and timelessly elegant.</p>
+      <div class="hero-btns" style="margin-top:2.5rem; display:flex; justify-content:center; gap:1.5rem;">
+        <button class="btn-gold" style="padding:18px 45px; font-size:1.05rem; font-weight:700;" onclick="navigate('/products')">Explore Collection <i class="fas fa-gem"></i></button>
+        <button class="btn-outline" style="padding:18px 45px; font-size:1.05rem; color:#fff; border-color:#fff;" onclick="navigate('/products?category=best-sellers')">Best Sellers</button>
       </div>
-    </div>
-    <div class="hero-p-right reveal">
-      <img class="hero-p-img" src="/images/hero_model.png" alt="Lencho Luxury Collection"/>
     </div>
   </section>
 
