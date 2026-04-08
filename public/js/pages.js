@@ -24,7 +24,10 @@ async function renderProductDetail(id) {
           ${p.mrp?`<span class="price-mrp">${formatCurrency(p.mrp)}</span>`:''}
           ${p.discount?`<span class="price-off">${p.discount}% off</span>`:''}
         </div>
-        <p class="product-description">${p.description}</p>
+        <div class="product-description-wrap">
+          <p class="product-description desc-collapsed" id="prod-desc">${p.description}</p>
+          ${p.description && p.description.length > 150 ? `<span class="see-more-btn" onclick="toggleDesc(this)">See More</span>` : ''}
+        </div>
         <div class="product-meta">
           <span><i class="fas fa-box" style="color:var(--rose);width:20px;"></i> <strong>Stock:</strong> ${p.stock > 10 ? 'In Stock' : p.stock > 0 ? `Only ${p.stock} left!` : 'Out of Stock'}</span>
           <span><i class="fas fa-tag" style="color:var(--rose);width:20px;"></i> <strong>Category:</strong> ${p.category}</span>
@@ -405,9 +408,9 @@ function renderContact() {
       <!-- Contact Form Right -->
       <div>
         <h3 style="font-family:'Playfair Display',serif;font-size:1.8rem;margin-bottom:1.5rem;color:var(--rose-dark);">Send a Message</h3>
-        <div class="form-group"><label>Your Name *</label><input type="text" placeholder="Rupansh Saini" id="contact-name"/></div>
-        <div class="form-group"><label>Email Address *</label><input type="email" placeholder="rupansh@example.com" id="contact-email"/></div>
-        <div class="form-group"><label>Phone Number (Optional)</label><input type="tel" placeholder="+91 7404217625" id="contact-phone"/></div>
+        <div class="form-group"><label>Your Name *</label><input type="text" placeholder="Enter your name" id="contact-name"/></div>
+        <div class="form-group"><label>Email Address *</label><input type="email" placeholder="example@domain.com" id="contact-email"/></div>
+        <div class="form-group"><label>Phone Number (Optional)</label><input type="tel" placeholder="+91 00000 00000" id="contact-phone"/></div>
         <div class="form-group"><label>Your Message *</label><textarea rows="4" placeholder="How can we help you?" id="contact-message" style="resize:vertical;"></textarea></div>
         <button class="btn-primary full-width" onclick="submitContact()"><i class="fas fa-paper-plane" style="margin-right:.5rem;"></i> Send Message</button>
       </div>
@@ -430,3 +433,14 @@ function submitContact() {
   document.getElementById('contact-phone').value = '';
 }
 
+
+function toggleDesc(btn) {
+  const p = btn.previousElementSibling;
+  if(p.classList.contains('desc-collapsed')) {
+    p.classList.remove('desc-collapsed');
+    btn.textContent = 'See Less';
+  } else {
+    p.classList.add('desc-collapsed');
+    btn.textContent = 'See More';
+  }
+}

@@ -160,6 +160,17 @@ async function handleSignup() {
   updateCartCount();
 }
 
+function toggleDesc(btn) {
+  const p = btn.previousElementSibling;
+  if(p.classList.contains('desc-collapsed')) {
+    p.classList.remove('desc-collapsed');
+    btn.textContent = 'See Less';
+  } else {
+    p.classList.add('desc-collapsed');
+    btn.textContent = 'See More';
+  }
+}
+
 
 async function handleLogout() {
   await api('/api/logout', { method: 'POST' });
@@ -270,9 +281,9 @@ function productCardHTML(p) {
         ${p.mrp ? `<span class="price-mrp">${formatCurrency(p.mrp)}</span>` : ''}
         ${p.discount ? `<span class="price-off">${p.discount}% off</span>` : ''}
       </div>
-      <div class="product-actions">
-        <button class="btn-outline btn-sm" onclick="addToCart('${p.id}')">+ Cart</button>
-        <button class="btn-primary btn-sm" onclick="navigate('/product/${p.id}')">View</button>
+      <div class="product-actions" style="margin-top:.75rem;">
+        <button class="btn-primary btn-sm" onclick="addToCart('${p.id}')" style="flex:1;"><i class="fas fa-shopping-bag"></i> Add</button>
+        <button class="btn-outline btn-sm" onclick="navigate('/product/${p.id}')" style="flex:1;">View</button>
       </div>
     </div>
   </div>`;
@@ -354,9 +365,10 @@ async function renderHome() {
       <div class="section-eyebrow" style="color:var(--gold-light);">✦ OUR STORY ✦</div>
       <h2 class="section-title" style="color:#fff;font-size:2.4rem;">Crafted with Passion</h2>
       <div class="divider"></div>
-      <p style="color:rgba(255,255,255,.65);max-width:560px;margin:.75rem auto 0;font-size:1rem;line-height:1.7;">
-        Every piece is handcrafted with love — see how we create jewellery that tells your story.
+      <p style="color:rgba(255,255,255,.65);max-width:560px;margin:.75rem auto 0;font-size:1rem;line-height:1.7;" class="desc-collapsed">
+        Every piece is handcrafted with love — see how we create jewellery that tells your story. Our designers use premium materials to ensure that every necklace, earring, and ring is anti-tarnish and comfortable for all-day wear.
       </p>
+      <span class="see-more-btn" onclick="toggleDesc(this)" style="color:var(--gold-light);">See More</span>
     </div>
     <div class="video-container" style="background:#000; overflow:hidden; position:relative; min-height:400px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
       <div style="position:absolute;inset:0;background:url('/images/hero.png') center/cover;opacity:0.6;animation:pulseZoom 15s infinite alternate;border-radius:24px;"></div>
