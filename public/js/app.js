@@ -378,22 +378,16 @@ async function renderHome() {
 
   <!-- VIDEO STORY -->
   <section class="video-section reveal">
-    <div class="section-header" style="text-align:center;">
-      <div class="section-eyebrow" style="color:var(--gold-light);">✦ OUR CRAFT ✦</div>
-      <h2 class="section-title" style="color:#fff;">Crafted with Passion</h2>
-      <div class="divider" style="margin:1rem auto;"></div>
-    </div>
-    <div class="video-container" style="background:#000; overflow:hidden; position:relative; min-height:450px; border-radius:32px;">
-      <video autoplay muted loop playsinline style="width:100%; height:100%; object-fit:cover; position:absolute; inset:0; opacity:0.6;">
-        <source src="https://player.vimeo.com/external/494163966.sd.mp4?s=43c3933ae37d113426742533cdaefc9b46571588&profile_id=165" type="video/mp4">
+    <div class="video-container" style="background:#000; overflow:hidden; position:relative; min-height:500px; border-radius:32px; box-shadow:0 30px 60px rgba(0,0,0,0.4);">
+      <video autoplay muted loop playsinline style="width:100%; height:100%; object-fit:cover; position:absolute; inset:0; opacity:0.8;">
+        <source src="https://assets.mixkit.co/videos/preview/mixkit-diamond-ring-and-accessories-close-up-34988-large.mp4" type="video/mp4">
       </video>
-      <div style="position:relative;z-index:2;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);">
+      <div style="position:relative;z-index:2;height:100%;min-height:500px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
         <div style="text-align:center;">
-          <i class="fas fa-play-circle" style="font-size:5rem;color:var(--gold-light);margin-bottom:1.5rem;cursor:pointer;filter:drop-shadow(0 0 20px rgba(0,0,0,0.5));"></i>
-          <h3 style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#fff;margin:0;">Jewellery That Speaks</h3>
+          <h2 style="font-family:'Playfair Display',serif;font-size:3.5rem;color:#fff;margin-bottom:1rem;text-shadow:0 10px 30px rgba(0,0,0,0.5);">Handcrafted Excellence</h2>
+          <p style="color:var(--gold-light);font-size:1.2rem;letter-spacing:0.2em;text-transform:uppercase;">✦ Luxury in Every Detail ✦</p>
         </div>
       </div>
-    </div>
     </div>
   </section>
 
