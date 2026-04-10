@@ -15,6 +15,8 @@ const userSchema = new mongoose.Schema({
   otp:       { code: String, expiresAt: Date },
   profileImg:{ type: String, default: '' },
   language:  { type: String, default: 'en' },
+  securityQuestion: { type: String, default: '' },
+  securityAnswer:   { type: String, default: '' },
 }, { timestamps: true });
 
 // ── PRODUCT ───────────────────────────────────────────────────
@@ -27,7 +29,7 @@ const productSchema = new mongoose.Schema({
   stock:      { type: Number, default: 0 },
   description:{ type: String, default: '' },
   images:     [String],
-  gstRate:    { type: Number, default: 3 },
+  gstRate:    { type: Number, default: 18 }, // ✅ FIXED: 18% for jewelry (CGST 9% + SGST 9%)
   hsn:        { type: String, default: '7117' },
   featured:   { type: Boolean, default: false },
   rating:     { type: Number, default: 0 },
@@ -45,6 +47,17 @@ const orderSchema = new mongoose.Schema({
   couponCode: String,
   status:     { type: String, default: 'placed' },
   timeline:   [{ status:String, label:String, date:Date, done:Boolean }],
+  
+  // ── PAYMENT & LOGISTICS ──
+  razorpayOrderId:   String,
+  razorpayPaymentId: String,
+  razorpaySignature: String,
+  
+  shiprocketOrderId:    String,
+  shiprocketShipmentId: String,
+  awbCode:              String, // Tracking ID
+  labelUrl:             String, // PDF URL
+  
   deliveryPartner: String,
   trackingNumber:  String,
   estimatedDelivery: Date,
@@ -81,12 +94,41 @@ const otpSchema = new mongoose.Schema({
 // Auto expire OTP docs after 10 min
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
+// ── TESTIMONIAL ───────────────────────────────────────────────
+const testimonialSchema = new mongoose.Schema({
+  name:    { type: String, required: true },
+  city:    { type: String, default: '' },
+  rating:  { type: Number, default: 5 },
+  comment: { type: String, required: true },
+  approved:{ type: Boolean, default: true }, // Auto-approve by default for manual admin entries
+}, { timestamps: true });
+
+// ── CATEGORY (COLLECTION) ─────────────────────────────────────
+const categorySchema = new mongoose.Schema({
+  name:        { type: String, required: true, unique: true },
+  slug:        { type: String, required: true, unique: true },
+  image:       { type: String, default: '' },
+  description: { type: String, default: '' },
+  displayOrder:{ type: Number, default: 0 },
+}, { timestamps: true });
+
+// ── INQUIRY (CONTACT FORM) ────────────────────────────────────
+const inquirySchema = new mongoose.Schema({
+  name:    { type: String, required: true },
+  email:   { type: String, required: true },
+  message: { type: String, required: true },
+  status:  { type: String, enum: ['new', 'read', 'replied'], default: 'new' },
+}, { timestamps: true });
+
 module.exports = {
   User:     mongoose.model('User',     userSchema),
+  Category: mongoose.model('Category', categorySchema),
   Product:  mongoose.model('Product',  productSchema),
   Order:    mongoose.model('Order',    orderSchema),
   Cart:     mongoose.model('Cart',     cartSchema),
   Wishlist: mongoose.model('Wishlist', wishlistSchema),
   Settings: mongoose.model('Settings', settingsSchema),
   OTPLog:   mongoose.model('OTPLog',   otpSchema),
+  Testimonial: mongoose.model('Testimonial', testimonialSchema),
+  Inquiry:  mongoose.model('Inquiry',  inquirySchema),
 };

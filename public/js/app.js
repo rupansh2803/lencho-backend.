@@ -81,9 +81,15 @@ function handleUserClick() {
   }
 }
 
-function openAuthModal() {
+async function openAuthModal() {
   document.getElementById('auth-modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  // Load CAPTCHA
+  const r = await api('/api/captcha');
+  if (r.q) {
+    const el = document.getElementById('signup-captcha-q');
+    if (el) el.innerText = r.q;
+  }
 }
 function closeAuthModal() {
   document.getElementById('auth-modal').style.display = 'none';
@@ -114,20 +120,11 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
-  const name = document.getElementById('signup-name')?.value?.trim();
-  const phone = document.getElementById('signup-phone')?.value?.trim();
-  const email = document.getElementById('signup-email')?.value?.trim();
-  const gender = document.getElementById('signup-gender')?.value || 'female';
-  const password = document.getElementById('signup-password')?.value;
-  const confirm = document.getElementById('signup-confirm')?.value;
+  const name = document.getElementById('signup-name').value;
+  const email = document.getElementById('signup-email').value;
+  const password = document.getElementById('signup-password').value;
+  const captcha = document.getElementById('signup-captcha').value;
   const err = document.getElementById('signup-error');
-  err.textContent = '';
-  if (!name || !email || !password) { err.textContent = 'Name, Email and Password required'; return; }
-  if (password.length < 6) { err.textContent = 'Password must be at least 6 characters'; return; }
-  if (password !== confirm) { err.textContent = '❌ Passwords do not match!'; return; }
-  const r = await api('/api/signup', { method: 'POST', body: { name, email, phone, gender, password } });
-  if (r.error) { err.textContent = r.error; return; }
-  currentUser = r.user;
   updateHeader();
   closeAuthModal();
   toast('🎉 Welcome to Lencho! Account created successfully!', 'success');
@@ -185,6 +182,13 @@ async function toggleWishlist(productId, btn) {
   const r = await api('/api/wishlist/toggle', { method: 'POST', body: { productId } });
   if (r.added) { btn.classList.add('active'); toast('Added to wishlist ❤️', 'success'); }
   else { btn.classList.remove('active'); toast('Removed from wishlist', 'info'); }
+}
+
+async function buyNow(productId) {
+  if (!currentUser) { openAuthModal(); return; }
+  await addToCart(productId, false);
+  navigate('/checkout');
+  toast('Proceeding to checkout! 🛒', 'success');
 }
 
 // ── DISCOUNT POPUP ────────────────────────────────────────
@@ -245,29 +249,60 @@ function formatDate(d) { return new Date(d).toLocaleDateString('en-IN', { day: '
 // ── PRODUCT CARD ─────────────────────────────────────────
 function productCardHTML(p) {
   const secondaryImg = p.images[1] || p.images[0];
+  const stockStatus = p.stock < 5 && p.stock > 0 ? '⚡ Only ' + p.stock + ' left!' : '';
+  const isFeatured = p.featured ? '⭐ Trending' : '';
+  const badge = isFeatured || stockStatus || (p.discount > 30 ? '🔥 Hot Deal' : '');
+  
   return `
-  <div class="product-card reveal">
-    <div class="product-img-wrap" onclick="navigate('/product/${p.id}')">
-      <img class="product-img" src="${p.images[0]}" alt="${p.name}" loading="lazy"/>
-      <img class="product-img img-hover" src="${secondaryImg}" alt="${p.name}" loading="lazy"/>
-      ${p.discount ? `<span class="product-badge">${p.discount}% OFF</span>` : ''}
-      <button class="product-wish" onclick="event.stopPropagation(); toggleWishlist('${p.id}',this)" title="Wishlist"><i class="fas fa-heart"></i></button>
+  <div class="product-card reveal" style="border-radius:16px !important;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.08) !important;transition:transform .3s ease,box-shadow .3s ease !important;background:#fff;border:1px solid rgba(201,106,138,.08);" onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 12px 32px rgba(201,106,138,.15) !important';" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.08) !important';">
+    <div class="product-img-wrap" onclick="navigate('/product/${p.id}')" style="position:relative;overflow:hidden;aspect-ratio:1/1.15;cursor:pointer;">
+      <img class="product-img" src="${p.images[0]}" alt="${p.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;transition:transform .5s ease !important;display:block;"/>
+      <img class="product-img img-hover" src="${secondaryImg}" alt="${p.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;opacity:0;transition:opacity .4s ease !important;display:block;"/>
+      
+      ${p.discount ? `<span class="product-badge" style="position:absolute;top:12px;left:12px;background:linear-gradient(135deg,#c9748f,#9b4065);color:#fff;padding:6px 12px;border-radius:8px;font-weight:700;font-size:.75rem;z-index:2;">✦ ${p.discount}% OFF ✦</span>` : ''}
+      
+      ${badge ? `<span style="position:absolute;bottom:12px;left:12px;background:var(--gold);color:var(--dark);padding:6px 12px;border-radius:8px;font-weight:600;font-size:.75rem;z-index:2;">${badge}</span>` : ''}
+      
+      <button class="product-wish" onclick="event.stopPropagation(); toggleWishlist('${p.id}',this)" title="Wishlist" style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3;transition:transform .2s;font-size:.9rem;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'"><i class="fas fa-heart" style="color:#ddd;"></i></button>
     </div>
-    <div class="product-body">
-      <div class="product-name" onclick="navigate('/product/${p.id}')">${p.name}</div>
-      <div class="product-rating">
-        <span class="stars">${renderStars(p.rating || 0)}</span>
-        ${p.reviews?.length ? `<span class="rating-count">(${p.reviews.length})</span>` : ''}
+    
+    <div class="product-body" style="padding:1rem 1rem 1.2rem;">
+      <div class="product-name" onclick="navigate('/product/${p.id}')" style="font-weight:600;font-size:.95rem;color:var(--dark);cursor:pointer;line-height:1.3;margin-bottom:.5rem;transition:color .2s;" onmouseover="this.style.color='var(--rose)'" onmouseout="this.style.color='var(--dark)'">${p.name}</div>
+      
+      <div class="product-rating" style="margin-bottom:.6rem;">
+        <span class="stars" style="font-size:.85rem;">${renderStars(p.rating || 0)}</span>
+        ${p.reviews?.length ? `<span class="rating-count" style="font-size:.75rem;color:var(--gray);margin-left:.5rem;">(${p.reviews.length})</span>` : ''}
       </div>
-      <div class="product-price">
-        <span class="price-current">${formatCurrency(p.price)}</span>
-        ${p.mrp ? `<span class="price-mrp">${formatCurrency(p.mrp)}</span>` : ''}
-        ${p.discount ? `<span class="price-off">${p.discount}% off</span>` : ''}
+      
+      <div class="product-price" style="margin-bottom:.75rem;">
+        <span class="price-current" style="font-size:1.2rem;font-weight:700;color:var(--rose);">₹${Math.round(p.price)}</span>
+        ${p.mrp ? `<span class="price-mrp" style="font-size:.85rem;color:var(--gray);text-decoration:line-through;margin-left:.5rem;">₹${Math.round(p.mrp)}</span>` : ''}
+        ${p.discount ? `<span class="price-off" style="font-size:.75rem;color:var(--gold);margin-left:.5rem;font-weight:600;">Save ${p.discount}%</span>` : ''}
       </div>
-      <div class="product-actions" style="margin-top:.75rem;">
-        <button class="btn-primary btn-sm" onclick="addToCart('${p.id}')" style="flex:1;">
+      
+      <div style="margin-bottom:0.75rem; padding:0.75rem; background:var(--beige); border-radius:8px; font-size:.8rem; color:var(--gray);">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:4px;">
+          <i class="fas fa-truck-fast" style="color:var(--rose);"></i>
+          <span><strong>Free</strong> delivery above ₹999</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <i class="fas fa-tag" style="color:var(--gold);"></i>
+          <span>Standard delivery in 3-5 days</span>
+        </div>
+      </div>
+      
+      <div class="product-actions" style="margin-top:1rem;display:flex;gap:.5rem;flex-direction:column;">
+        <button class="btn-primary btn-sm" onclick="addToCart('${p.id}')" style="flex:1;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#c9748f,#9b4065);color:#fff;font-weight:600;cursor:pointer;transition:transform .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
           <i class="fas fa-shopping-bag"></i> Add to Cart
         </button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+          <button class="btn-outline btn-sm" onclick="navigate('/product/${p.id}')" style="padding:10px;border-radius:8px;border:2px solid var(--rose);background:#fff;color:var(--rose);font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;" onmouseover="this.style.background='var(--rose-light)'" onmouseout="this.style.background='#fff'">
+            <i class="fas fa-eye"></i> View
+          </button>
+          <button class="btn-gold btn-sm" onclick="event.stopPropagation(); buyNow('${p.id}')" style="padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#c9954c,#a67a38);color:#fff;font-weight:600;cursor:pointer;transition:transform .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+            <i class="fas fa-bolt"></i> Buy Now
+          </button>
+        </div>
       </div>
     </div>
   </div>`;
@@ -277,63 +312,76 @@ function productCardHTML(p) {
 async function renderHome() {
   const app = document.getElementById('app');
   app.innerHTML = `
-  <!-- HERO PREMIUM CENTERED -->
-  <section class="hero-premium" style="background: url('/images/premium_hero.png') center/cover no-repeat; justify-content: center; text-align: center;">
-    <div style="position:absolute; inset:0; background:rgba(0,0,0,0.55); z-index:1;"></div>
-    <div class="hero-p-centered reveal" style="position:relative; z-index:2; padding: 0 5%;">
-      <div class="hero-badge" style="color:var(--gold-light);background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);padding:10px 24px;border-radius:99px;display:inline-block;margin-bottom:1.5rem;letter-spacing:.25em;font-size:.85rem;backdrop-filter:blur(5px);">PREMIUM COLLECTION 2026</div>
-      <h1 class="hero-p-title" style="margin-bottom:1.5rem; font-size: clamp(3rem, 7vw, 5.5rem);">Eminence & Elegance<br/><span style="color:var(--gold-light); font-family:'Playfair Display',serif; font-style:italic;">Exquisite Luxury</span></h1>
-      <p class="hero-p-sub" style="max-width:800px; margin: 0 auto 2.5rem; color:rgba(255,255,255,0.95); font-size:1.3rem; line-height:1.7;">Indulge in the finest artificial jewellery curated for the modern connoisseur. Timeless designs, ethically crafted, and purely elite.</p>
-      <div class="hero-btns" style="display:flex; justify-content:center; gap:1.5rem;">
-        <button class="btn-gold" style="padding:20px 50px; font-size:1.1rem; font-weight:700;" onclick="navigate('/products')">Explore High Jewels <i class="fas fa-gem"></i></button>
-        <button class="btn-outline" style="padding:20px 50px; font-size:1.1rem; color:#fff; border-color:#fff;" onclick="navigate('/products?category=best-sellers')">Signature Pieces</button>
+  <section class="hero-premium" style="background: url('https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1920&q=100') center/cover no-repeat; justify-content: center; text-align: center; border-radius:0; position:relative;">
+    <div style="position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.4)); z-index:1;"></div>
+    
+    <div style="position:absolute;top:0;left:0;right:0;background:linear-gradient(90deg,rgba(201,149,76,.95) 0%,rgba(242,208,122,.85) 50%,rgba(201,149,76,.95) 100%);padding:12px;z-index:3;color:var(--dark);font-weight:700;font-size:.9rem;letter-spacing:.05em;text-transform:uppercase;text-align:center;">
+      🎁 LIMITED OFFER: FLAT 50% OFF ON SELECTED ITEMS + FREE DELIVERY!
+    </div>
+    
+    <div class="hero-p-centered reveal" style="position:relative; z-index:2; padding: 60px 5% 0; margin-top:20px;">
+      <div class="hero-badge" style="color:var(--gold-light);background:rgba(0,0,0,0.3); border:1.5px solid rgba(201,168,76,.4);padding:12px 28px;border-radius:99px;display:inline-block;margin-bottom:1.5rem;letter-spacing:.25em;font-size:.85rem;backdrop-filter:blur(8px);font-weight:600;">✦ PREMIUM COLLECTION 2026 ✦</div>
+      <h1 class="hero-p-title" style="margin-bottom:1.5rem; font-size: clamp(2.5rem, 7vw, 5rem); line-height:1.15; text-shadow: 0 4px 20px rgba(0,0,0,0.5);">Luxury Redefined<br/><span style="color:var(--gold-light); font-family:'Playfair Display',serif; font-style:italic;">For The Modern Woman</span></h1>
+      <p class="hero-p-sub" style="max-width:700px; margin: 0 auto 1.5rem; color:#fff; font-size:1.15rem; line-height:1.7; font-weight:500; text-shadow: 0 2px 10px rgba(0,0,0,0.8);">Premium artificial jewellery starting at just ₹99. Look expensive, spend smart. 4.8⭐ trusted by 50K+ customers.</p>
+      
+      <div class="hero-btns" style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <button class="btn-gold" style="padding:18px 42px; font-size:1rem; font-weight:700;box-shadow:0 8px 25px rgba(201,149,76,.4);" onclick="navigate('/products')">🛍️ Shop Now & Save</button>
+        <button class="btn-outline" style="padding:18px 42px; font-size:1rem; color:#fff; border-color:rgba(255,255,255,.7); border-width:2px;" onclick="navigate('/products?category=earrings')">View Collections</button>
       </div>
     </div>
   </section>
 
   <!-- TRUST HUB -->
-  <div class="trust-hub">
-    <div class="trust-item"><i class="fas fa-truck-fast"></i> <span>Free Delivery</span></div>
-    <div class="trust-item"><i class="fas fa-wallet"></i> <span>Cash on Delivery</span></div>
-    <div class="trust-item"><i class="fas fa-rotate-left"></i> <span>Easy 7-Day Returns</span></div>
-    <div class="trust-item"><i class="fas fa-shield-check"></i> <span>100% Authentic</span></div>
+  <div class="trust-hub" style="background:linear-gradient(135deg, rgba(201,106,138,.08) 0%, rgba(201,149,76,.08) 100%);">
+    <div class="trust-item"><i class="fas fa-truck-fast"></i> <span><strong>Free</strong> Delivery</span></div>
+    <div class="trust-item"><i class="fas fa-wallet"></i> <span><strong>Cash on</strong> Delivery</span></div>
+    <div class="trust-item"><i class="fas fa-rotate-left"></i> <span><strong>7-Day</strong> Returns</span></div>
+    <div class="trust-item"><i class="fas fa-shield-check"></i> <span><strong>100%</strong> Authentic</span></div>
   </div>
 
-  <!-- MARQUEE -->
-  <div class="marquee-strip">
-    <div class="marquee-inner">
-      ${Array(8).fill('✦ BUY 2 GET 1 FREE – USE CODE: B2G1 &nbsp;&nbsp; ✦ PRE-BOOK FOR AKSHAYA TRITIYA &nbsp;&nbsp; ✦ FLAT 50% OFF ON BRIDAL SETS &nbsp;&nbsp;').join('')}
+  <section class="promo-limited-banner">
+    <div class="promo-content reveal-left">
+      <div class="hero-badge" style="background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.2); color:#fff; margin-bottom:1rem;">✦ LIMITED EDITION 2026 ✦</div>
+      <h2 style="font-family:'Playfair Display',serif; font-size:2.8rem; margin-bottom:1rem; line-height:1.2;">Exclusive Seasonal Drop<br/><span style="color:var(--gold-light);">Sale Ends In</span></h2>
+      <div class="promo-timer" id="promo-timer">
+        <div class="timer-box"><span class="timer-val" id="t-hours">00</span><span class="timer-label">Hours</span></div>
+        <div class="timer-box"><span class="timer-val" id="t-mins">00</span><span class="timer-label">Mins</span></div>
+        <div class="timer-box"><span class="timer-val" id="t-secs">00</span><span class="timer-label">Secs</span></div>
+      </div>
+      <p style="color:rgba(255,255,255,0.7); max-width:400px; margin-bottom:2rem;">Our most awaited collection is here. Limited quantities available. Grab yours before the clock strikes zero.</p>
+      <button class="btn-gold" onclick="navigate('/products')">Explore Collection <i class="fas fa-arrow-right"></i></button>
     </div>
-  </div>
+    <div class="promo-image reveal-right" style="flex:1; max-width:400px; position:relative; z-index:2;">
+      <img src="https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=800" style="width:100%; border-radius:24px; box-shadow:0 30px 60px rgba(0,0,0,0.5); transform:rotate(2deg);" alt="Promo"/>
+    </div>
+  </section>
 
-  <!-- CATEGORIES -->
-  <section class="categories">
+  <section class="categories" style="padding:4rem 5%;">
     <div class="section-header reveal">
       <div class="section-eyebrow">Shop by Category</div>
       <h2 class="section-title">Exclusive Collections</h2>
       <div class="divider"></div>
-      <p class="section-desc">Handpicked designs that define elegance and sophistication</p>
     </div>
     <div class="categories-grid">
       <div class="cat-card reveal-left" onclick="navigate('/products?category=earrings')">
         <img class="cat-img" src="/images/earrings.png" alt="Earrings" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">Earrings</div><button class="cat-btn">Shop Now</button></div>
+        <div class="cat-content"><div class="cat-name">💍 Earrings</div><button class="cat-btn">Shop Now</button></div>
       </div>
       <div class="cat-card reveal" onclick="navigate('/products?category=necklace')">
         <img class="cat-img" src="/images/necklace.png" alt="Necklace" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">Necklace</div><button class="cat-btn">Shop Now</button></div>
+        <div class="cat-content"><div class="cat-name">📿 Necklace</div><button class="cat-btn">Shop Now</button></div>
       </div>
       <div class="cat-card reveal-right" onclick="navigate('/products?category=toe-rings')">
         <img class="cat-img" src="/images/toe-rings.png" alt="Toe Rings" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">Toe Rings</div><button class="cat-btn">Shop Now</button></div>
+        <div class="cat-content"><div class="cat-name">🦶 Toe Rings</div><button class="cat-btn">Shop Now</button></div>
       </div>
-      <div class="cat-card reveal-right" onclick="navigate('/products?category=payal')" style="animation-delay:.2s">
+      <div class="cat-card reveal-right" onclick="navigate('/products?category=payal')">
         <img class="cat-img" src="/images/payal.png" alt="Payal" onerror="this.src='/images/hero.png'"/>
         <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">Payal</div><button class="cat-btn">Shop Now</button></div>
+        <div class="cat-content"><div class="cat-name">🔔 Payal</div><button class="cat-btn">Shop Now</button></div>
       </div>
     </div>
   </section>
@@ -349,32 +397,6 @@ async function renderHome() {
     <div style="text-align:center;margin-top:3rem;"><button class="btn-outline" onclick="navigate('/products')">View All Collections <i class="fas fa-arrow-right"></i></button></div>
   </section>
 
-  <!-- VIDEO STORY -->
-  <section class="video-section reveal">
-    <div class="video-container" style="background:#000; overflow:hidden; position:relative; min-height:500px; border-radius:32px; box-shadow:0 30px 60px rgba(0,0,0,0.4);">
-      <video autoplay muted loop playsinline style="width:100%; height:100%; object-fit:cover; position:absolute; inset:0; opacity:0.8;">
-        <source src="https://assets.mixkit.co/videos/preview/mixkit-diamond-ring-and-accessories-close-up-34988-large.mp4" type="video/mp4">
-      </video>
-      <div style="position:relative;z-index:2;height:100%;min-height:500px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
-        <div style="text-align:center;">
-          <h2 style="font-family:'Playfair Display',serif;font-size:3.5rem;color:#fff;margin-bottom:1rem;text-shadow:0 10px 30px rgba(0,0,0,0.5);">Handcrafted Excellence</h2>
-          <p style="color:var(--gold-light);font-size:1.2rem;letter-spacing:0.2em;text-transform:uppercase;">✦ Luxury in Every Detail ✦</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FEATURED PRODUCTS -->
-  <section style="background:var(--beige);">
-    <div class="section-header reveal">
-      <div class="section-eyebrow">Bestsellers</div>
-      <h2 class="section-title">Featured Products</h2>
-      <div class="divider"></div>
-    </div>
-    <div class="products-grid" id="featured-grid"><div style="text-align:center;padding:2rem;color:var(--gray);">Loading products...</div></div>
-    <div style="text-align:center;margin-top:3rem;"><button class="btn-outline" onclick="navigate('/products')">View All Products <i class="fas fa-arrow-right"></i></button></div>
-  </section>
-
   <!-- TESTIMONIALS -->
   <section class="testimonials">
     <div class="section-header reveal">
@@ -382,15 +404,15 @@ async function renderHome() {
       <h2 class="section-title">What Our Customers Say</h2>
       <div class="divider"></div>
     </div>
-    <div class="testi-grid">
-      <div class="testi-card reveal"><div class="testi-stars">★★★★★</div><p class="testi-text">"Absolutely love the rose gold earrings! The quality is amazing and they look so premium. Got so many compliments!"</p><div class="testi-author"><div class="testi-avatar">P</div><div><div class="testi-name">Priya Sharma</div><div class="testi-loc">Mumbai, Maharashtra</div></div></div></div>
-      <div class="testi-card reveal"><div class="testi-stars">★★★★★</div><p class="testi-text">"The kundan necklace set is breathtaking! Wore it to my sister's wedding and everyone asked where I got it from."</p><div class="testi-author"><div class="testi-avatar">M</div><div><div class="testi-name">Meera Patel</div><div class="testi-loc">Ahmedabad, Gujarat</div></div></div></div>
-      <div class="testi-card reveal"><div class="testi-stars">★★★★★</div><p class="testi-text">"Fast delivery, beautiful packaging, and the jewellery is exactly as pictured. Will definitely order again!"</p><div class="testi-author"><div class="testi-avatar">A</div><div><div class="testi-name">Ananya Reddy</div><div class="testi-loc">Hyderabad, Telangana</div></div></div></div>
+    <div class="testi-grid" id="testi-grid">
+      <div style="grid-column:1/-1;text-align:center;color:var(--gray);">Luxury Social Proof Incoming...</div>
     </div>
   </section>`;
 
   createParticles();
   loadFeaturedProducts();
+  loadTestimonials();
+  startOfferTimer();
   initScrollReveal();
   setTimeout(() => {
     if (!sessionStorage.getItem('popupShown')) {
@@ -400,12 +422,172 @@ async function renderHome() {
   }, 5000);
 }
 
-function createParticles() {
-  const container = document.getElementById('particles');
+// ── DATA LOADERS ──────────────────────────────────────────
+async function loadTestimonials() {
+  const container = document.getElementById('testi-grid');
   if (!container) return;
+  try {
+    let t = await api('/api/testimonials');
+    if (!t || t.length === 0) {
+      t = [
+        { name: 'Anjali Sharma', city: 'Delhi', rating: 5, comment: 'The jewelry is absolutely stunning! The finish and quality are even better than in the photos. Highly recommended! ✦' },
+        { name: 'Priya Verma', city: 'Mumbai', rating: 5, comment: 'Ordered a necklace set for a wedding, and I received so many compliments. Fast delivery too! 💎' },
+        { name: 'Surbhi Gupta', city: 'Chandigarh', rating: 5, comment: 'Love the premium packaging and the rounded design. Feels very high-end. Great experience. ✨' },
+        { name: 'Megha Jain', city: 'Jaipur', rating: 4, comment: 'Beautiful earrings, very lightweight and elegant. Will definitely shop again for the bridal collection.' }
+      ];
+    }
+    const testiHTML = t.map(testi => `
+      <div class="testi-card">
+        <div class="testi-stars">${'★'.repeat(testi.rating || 5)}</div>
+        <p class="testi-text">"${testi.comment}"</p>
+        <div class="testi-author">
+          <div class="testi-avatar">${testi.name[0]}</div>
+          <div><div class="testi-name">${testi.name}</div><div class="testi-loc">${testi.city || ''}</div></div>
+        </div>
+      </div>`).join('');
+    container.innerHTML = `<div class="testi-marquee-container"><div class="testi-marquee-inner">${testiHTML}${testiHTML}${testiHTML}</div></div>`;
+  } catch (e) { container.innerHTML = '<div style="text-align:center;color:var(--gray);">Luxury Social Proof Incoming...</div>'; }
+}
+
+function startOfferTimer() {
+  const target = new Date();
+  target.setHours(target.getHours() + 24); // 24h from now for demo
+
+  function update() {
+    const now = new Date();
+    const diff = target - now;
+    if (diff <= 0) return;
+    const h = Math.floor(diff / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.innerText = val.toString().padStart(2, '0');
+    };
+    set('t-hours', h); set('t-mins', m); set('t-secs', s);
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+async function loadFeaturedProducts() {
+  const grid = document.getElementById('featured-grid');
+  if (!grid) return;
+  try {
+    const r = await api('/api/products?featured=true');
+    console.log('Featured products response:', r);
+    if (r && Array.isArray(r) && r.length > 0) {
+      grid.innerHTML = r.map(productCardHTML).join('');
+      initScrollReveal();
+    } else if (Array.isArray(r) && r.length === 0) {
+      grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--gray);">No featured products available. Explore all products below. ✦</div>';
+    } else {
+      console.error('Invalid response format:', r);
+      grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--rose);">Unable to load products. Please refresh the page. ✦</div>';
+    }
+  } catch (e) {
+    console.error('Featured products error:', e);
+    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--rose);">Unable to load products. Please check your connection. ✦</div>';
+  }
+}
+
+/* ── TRACK ORDER PAGE ─────────────────────────────────────── */
+function renderTrack() {
+  document.getElementById('app').innerHTML = `
+  <div class="track-page reveal animate-pop-in">
+    <div class="section-eyebrow">Order Status</div>
+    <h1 class="page-title" style="margin-bottom:0.5rem;">Track Your Order</h1>
+    <p style="color:var(--gray);margin-bottom:2rem;">Enter your Order ID (starts with LEN) to get real-time tracking updates.</p>
+    <div class="track-search">
+      <input id="track-input" placeholder="LEN-XXXXXXXX" onkeydown="if(event.key==='Enter')trackOrder()"/>
+      <button class="btn-primary" onclick="trackOrder()"><i class="fas fa-search"></i></button>
+    </div>
+    <div id="track-result"></div>
+  </div>`;
+}
+
+async function trackOrder() {
+  const id = document.getElementById('track-input')?.value?.trim();
+  if (!id) { toast('Please enter Order ID', 'error'); return; }
+  const order = await api('/api/orders/track/' + id);
+  const el = document.getElementById('track-result');
+  if (order.error) { el.innerHTML = `<div style="color:#ef4444;padding:1.5rem;background:#fee2e2;border-radius:var(--radius);margin-top:1rem;">${order.error}</div>`; return; }
+  const statusLabels = { placed:'Order Placed', confirmed:'Confirmed', shipped:'Shipped', out_for_delivery:'Out for Delivery', delivered:'Delivered ✓', cancelled:'Cancelled' };
+  el.innerHTML = `
+  <div class="order-status-card animate-pop-in">
+    <div class="order-id-display">ORDER ID: ${order.id}</div>
+    <span class="product-badge" style="position:static;display:inline-block;margin-bottom:1rem;">${statusLabels[order.status] || order.status}</span>
+    <p style="font-size:.875rem;color:var(--gray);">Estimated Delivery: <strong>${formatDate(order.estimatedDelivery)}</strong></p>
+    <div class="timeline">
+      ${(order.timeline||[]).map(t=>`<div class="timeline-item ${t.done?'done':''}"><div class="timeline-dot"><i class="fas fa-${t.done?'check':'circle'}" style="font-size:.65rem;"></i></div><div class="timeline-content"><div class="timeline-label">${t.label}</div><div class="timeline-date">${t.date?formatDate(t.date):''}</div></div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ── CONTACT PAGE ─────────────────────────────────────────── */
+function renderContact() {
+  document.getElementById('app').innerHTML = `
+  <div class="container animate-pop-in" style="padding:4rem 0;">
+    <h1 class="section-title" style="text-align:center;">Contact Us</h1>
+    <div class="divider"></div>
+    <p style="text-align:center;color:var(--gray);margin-bottom:4rem;">Reach out for bridal inquiries, bulk orders, or support.</p>
+    <div class="contact-layout">
+      <div>
+        <h3 style="font-family:'Playfair Display',serif;font-size:1.8rem;margin-bottom:2rem;color:var(--rose-dark);">Store Locations</h3>
+        <div class="contact-info-card">
+          <div class="contact-icon-circle" style="background:var(--rose-light);color:var(--rose-dark);"><i class="fas fa-map-marker-alt"></i></div>
+          <div><h4>Flagship Store</h4><p style="color:var(--gray);font-size:.9rem;">197 Sarakpur, Barara, Ambala, Haryana</p></div>
+        </div>
+        <div class="contact-info-card">
+          <div class="contact-icon-circle" style="background:#e0f2fe;color:#0284c7;"><i class="fas fa-phone-alt"></i></div>
+          <div><h4>Contact Support</h4><p style="color:var(--gray);font-size:.9rem;">+91 7404217625<br/>Support available 10AM - 7PM</p></div>
+        </div>
+        <div class="contact-info-card" onclick="window.open('https://wa.me/917404217625')" style="cursor:pointer;">
+          <div class="contact-icon-circle" style="background:var(--gold-light);color:var(--gold-dark);"><i class="fab fa-whatsapp"></i></div>
+          <div><h4>WhatsApp Support</h4><p style="color:var(--rose-dark);font-weight:600;font-size:.9rem;">Immediate Response ↗</p></div>
+        </div>
+      </div>
+      <div class="glass-card" style="padding:2.5rem;background:#fff;border:1px solid var(--border);">
+        <h3 style="font-family:'Playfair Display',serif;font-size:1.8rem;margin-bottom:1.5rem;">Send an Inquiry</h3>
+        <div class="form-group"><label>Full Name</label><input id="contact-name" placeholder="Name"/></div>
+        <div class="form-group"><label>Email Address</label><input id="contact-email" type="email" placeholder="example@domain.com"/></div>
+        <div class="form-group"><label>Your Message</label><textarea id="contact-message" rows="4" placeholder="How can we help?"></textarea></div>
+        <button class="btn-primary full-width" onclick="submitContact()"><i class="fas fa-paper-plane"></i> Send Message</button>
+      </div>
+    </div>
+  </div>`;
+  initScrollReveal();
+}
+
+async function submitContact() {
+  const n = document.getElementById('contact-name').value;
+  const e = document.getElementById('contact-email').value;
+  const m = document.getElementById('contact-message').value;
+  if(!n || !e || !m) { toast('Please fill all fields', 'error'); return; }
+  const resp = await api('/api/contact', { method: 'POST', body: { name:n, email:e, message:m } });
+  if(resp.success) {
+    toast('Thank you! Our concierge will contact you within 24 hours. 💌', 'success');
+    navigate('/');
+  } else {
+    toast(resp.error || 'Something went wrong', 'error');
+  }
+}
+
+function startOfferTimer() {
+  const timerEl = document.getElementById('offer-timer');
+  if (!timerEl) return;
+  function updateTimer() {
+    const now = new Date(), midnight = new Date(); midnight.setHours(24, 0, 0, 0); const diff = midnight - now;
+    const hours = Math.floor(diff / (1000 * 60 * 60)), minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)), seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    timerEl.textContent = `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+  }
+  updateTimer(); setInterval(updateTimer, 1000);
+}
+
+function createParticles() {
+  const container = document.getElementById('particles'); if (!container) return;
   for (let i = 0; i < 20; i++) {
-    const p = document.createElement('div');
-    p.className = 'particle';
+    const p = document.createElement('div'); p.className = 'particle';
     p.style.cssText = `left:${Math.random() * 100}%;width:${2 + Math.random() * 4}px;height:${2 + Math.random() * 4}px;animation-duration:${8 + Math.random() * 12}s;animation-delay:${Math.random() * 8}s;opacity:${0.3 + Math.random() * 0.5}`;
     container.appendChild(p);
   }
@@ -416,15 +598,20 @@ async function loadFeaturedProducts() {
   if (!grid) return;
   try {
     const r = await api('/api/products?featured=true');
-    if (r && r.length > 0) {
+    console.log('Featured products response:', r);
+    if (r && Array.isArray(r) && r.length > 0) {
       grid.innerHTML = r.map(productCardHTML).join('');
-    } else {
+      initScrollReveal();
+    } else if (Array.isArray(r) && r.length === 0) {
       grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--gray);">No featured products available. Explore all products below. ✦</div>';
+    } else {
+      console.error('Invalid response format:', r);
+      grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--rose);">Unable to load products. Please refresh the page. ✦</div>';
     }
   } catch (e) {
+    console.error('Featured products error:', e);
     grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--rose);">Unable to load products. Please check your connection. ✦</div>';
   }
-  initScrollReveal();
 }
 
 // ── PRODUCTS PAGE ─────────────────────────────────────────

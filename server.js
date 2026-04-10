@@ -11,25 +11,100 @@ const compression = require('compression');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const mongoose = require('mongoose');
-const axios = require('axios');
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const { User, Product, Order, Cart, Wishlist, Settings, OTPLog } = require('./models');
+const { User, Product, Order, Cart, Wishlist, Settings, OTPLog, Testimonial, Category, Inquiry } = require('./models');
+
+const rzp = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_6oE5E0WwH6wX9z', 
+  key_secret: process.env.RAZORPAY_SECRET || 'test_secret'
+});
 
 const app = express();
-app.use(cors({ origin: '*', credentials: true }));
+
+// CORS Configuration for Production
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:30054',
+  'https://lencho.in',
+  'https://www.lencho.in',
+  'https://lencho.netlify.app',
+  'https://api.lencho.in'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
+  credentials: true
+}));
 
 let useDB = false;
 // ─── MONGODB ──────────────────────────────────────────────────
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lencho-db')
-  .then(() => {
+async function initDB() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lencho-db');
+    // Seed initial products if none exist
+    const pCount = await Product.countDocuments();
+    if (pCount === 0) {
+      console.log('Seeding initial products...');
+      const sampleProducts = [
+        { 
+          name: 'Silver Oxidized Jhumka Earrings', 
+          category: 'earrings', 
+          price: 299, 
+          mrp: 599, 
+          discount: 50, 
+          stock: 20, 
+          featured: true,
+          images: ['https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=600&q=80'],
+          description: 'Premium Silver Oxidized Jhumkas for everyday elegance.'
+        },
+        { 
+          name: 'American Diamond Necklace Set', 
+          category: 'necklace', 
+          price: 1299, 
+          mrp: 2499, 
+          discount: 48, 
+          stock: 15, 
+          featured: true,
+          images: ['https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=600&q=80'],
+          description: 'Stunning AD Necklace set with matching earrings.'
+        },
+        { 
+          name: 'Gold Plated Toe Rings', 
+          category: 'toe-rings', 
+          price: 199, 
+          mrp: 399, 
+          discount: 50, 
+          stock: 50, 
+          featured: true,
+          images: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80'],
+          description: 'Elegant toe rings for traditional look.'
+        }
+      ];
+      await Product.insertMany(sampleProducts);
+    }
+
     useDB = true;
     console.log('✅ MongoDB Connected → DB: lencho-db');
-    seedAdmin(); seedProducts(); seedSettings();
-  })
-  .catch((err) => {
-    console.log('⚠️ MongoDB not connected. Using JSON fallback.', err.message);
+    await seedAdmin();
+    await seedCategories();
+    await seedProducts();
+    await seedSettings();
+    console.log('🚀 System Bootstrapped Successfully');
+  } catch (err) {
+    console.log('⚠️ MongoDB or Seeding Error:', err.message);
+    useDB = false;
     initFallback();
-  });
+  }
+}
+initDB();
 
 // ─── SMS OTP (Fast2SMS – free Indian SMS) ────────────────────
 async function sendSMSOTP(phone, otp) {
@@ -100,10 +175,28 @@ function initFallback() {
 }
 
 // ─── SEED DATA ────────────────────────────────────────────────
+async function seedCategories() {
+  try {
+    const cCount = await Category.countDocuments();
+    if (cCount === 0) {
+      console.log('Seeding categories...');
+      const sampleCats = [
+        { name: 'Earrings', slug: 'earrings', image: '/images/earrings.png', description: 'Elegant earrings for every occasion' },
+        { name: 'Necklace', slug: 'necklace', image: '/images/necklace.png', description: 'Stunning necklace sets' },
+        { name: 'Toe Rings', slug: 'toe-rings', image: '/images/toe-rings.png', description: 'Traditional and modern toe rings' },
+        { name: 'Payal', slug: 'payal', image: '/images/payal.png', description: 'Beautiful anklets' },
+        { name: 'Rings', slug: 'rings', image: '/images/rings.png', description: 'Premium finger rings' },
+        { name: 'Bangles', slug: 'bangles', image: '/images/bangles.png', description: 'Traditional bangles' }
+      ];
+      await Category.insertMany(sampleCats);
+    }
+  } catch (e) { console.error('Category Seed Error:', e.message); }
+}
+
 async function seedAdmin() {
-  const email = 'Rupanshsini17@gmil.com';
+  const email = 'rupanshsaini17@gmail.com';
   const pass = 'Isha@1234@';
-  
+
   if (useDB) {
     let admin = await User.findOne({ role: 'admin' });
     if (admin) {
@@ -190,6 +283,13 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 const requireAuth = (req, res, next) => { if (!req.session.userId) return res.status(401).json({ error: 'Please login first' }); next(); };
 const requireAdmin = (req, res, next) => { if (!req.session.userId || req.session.role !== 'admin') return res.status(403).json({ error: 'Admin access only' }); next(); };
 
+// ─── SECURITY HELPERS ─────────────────────────────────────────
+function generateCaptcha() {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  return { q: `${a} + ${b} = ?`, a: a + b };
+}
+
 // ─── HELPER: get setting ──────────────────────────────────────
 async function getSetting(key, fallback) {
   if (!useDB) return fallback;
@@ -254,6 +354,232 @@ app.get('/api/admin/discounts', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GST & TAX REPORTING ──────────────────────────────────────
+app.get('/api/admin/gst-data', requireAdmin, async (req, res) => {
+  try {
+    const orders = await Order.find({ status: { $ne: 'cancelled' } });
+    let totalSales = 0;
+    let totalGST = 0;
+    let cgst = 0;
+    let sgst = 0;
+
+    orders.forEach(order => {
+      totalSales += order.grandTotal || 0;
+      totalGST += order.gstTotal || 0;
+      cgst += (order.gstTotal || 0) / 2;
+      sgst += (order.gstTotal || 0) / 2;
+    });
+
+    res.json({
+      summary: {
+        totalSales,
+        totalGST,
+        cgst,
+        sgst,
+        orderCount: orders.length
+      },
+      orders: orders.map(o => ({
+        id: o._id,
+        date: o.createdAt,
+        customer: o.userName,
+        amount: o.grandTotal,
+        gst: o.gstTotal,
+        status: o.status
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── TESTIMONIALS ──────────────────────────────────────────────
+app.get('/api/testimonials', async (req, res) => {
+  try {
+    const t = await Testimonial.find({ approved: true }).sort('-createdAt');
+    res.json(t);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/testimonials', requireAdmin, async (req, res) => {
+  try {
+    const t = new Testimonial(req.body);
+    await t.save();
+    res.json({ message: 'Testimonial added', testimonial: t });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SECURITY & CAPTCHA ───────────────────────────────────────
+app.get('/api/captcha', (req, res) => {
+  const { q, a } = generateCaptcha();
+  req.session.captcha = a;
+  res.json({ question: q });
+});
+
+// ─── ADMIN SETUP ─────────────────────────────────────────────
+app.get('/api/admin/check-setup', async (req, res) => {
+  try {
+    if (!useDB) return res.json({ setupRequired: false });
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    res.json({ setupRequired: adminCount === 0 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/setup', async (req, res) => {
+  try {
+    if (await User.countDocuments({ role: 'admin' }) > 0) return res.status(400).json({ error: 'Setup already completed' });
+    const { name, email, password, phone, securityQuestion, securityAnswer } = req.body;
+    if (!email || !password || !securityAnswer) return res.status(400).json({ error: 'Complete all fields' });
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password: hashed, phone, role:'admin', securityQuestion, securityAnswer, isVerified: true });
+    req.session.userId = user._id.toString(); req.session.role = 'admin'; 
+    res.json({ success: true, message: 'Master Admin created' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── FORGOT PASSWORD (SECURITY QUESTION) ──────────────────────
+app.post('/api/admin/forgot-password', async (req, res) => {
+  try {
+    const { email, securityAnswer, newPassword } = req.body;
+    const user = await User.findOne({ email, role: 'admin' });
+    if (!user) return res.status(404).json({ error: 'Admin account not found' });
+    if (user.securityAnswer.toLowerCase() !== securityAnswer.toLowerCase()) return res.status(400).json({ error: 'Incorrect security answer' });
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    res.json({ success: true, message: 'Password reset successful' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── RAZORPAY — SMART PAYMENT HUB ─────────────────────────────
+app.post('/api/razorpay/order', requireAuth, async (req, res) => {
+  try {
+    const { amount, currency = 'INR', receipt } = req.body;
+    const options = {
+      amount: Math.round(amount * 100), // convert to paise
+      currency,
+      receipt: receipt || `rec_${Date.now()}`,
+      payment_capture: 1
+    };
+    const order = await rzp.orders.create(options);
+    res.json(order);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/razorpay/verify', requireAuth, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+    const key_secret = process.env.RAZORPAY_SECRET || 'test_secret';
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', key_secret)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature === razorpay_signature) {
+      if (useDB) {
+        await Order.findOneAndUpdate({ id: orderId }, {
+          status: 'placed',
+          razorpayOrderId: razorpay_order_id,
+          razorpayPaymentId: razorpay_payment_id,
+          razorpaySignature: razorpay_signature,
+          $push: { timeline: { status: 'paid', label: 'Payment Verified ✓', date: new Date(), done: true } }
+        });
+      }
+      res.json({ success: true, message: 'Payment verified successfully' });
+    } else {
+      res.status(400).json({ error: 'Invalid payment signature' });
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── SHIPROCKET — AUTOMATED LOGISTICS ─────────────────────────
+const ShiprocketService = {
+  token: null,
+  async getToken() {
+    try {
+      const res = await axios.post('https://apiv2.shiprocket.in/v1/external/auth/login', {
+        email: process.env.SHIPROCKET_EMAIL || 'hello@lencho.in',
+        password: process.env.SHIPROCKET_PASSWORD || 'password123'
+      });
+      this.token = res.data.token;
+      return this.token;
+    } catch (err) { console.error('Shiprocket Auth Error:', err.message); return null; }
+  },
+  async createOrder(order, token) {
+    // Transform our order to Shiprocket format
+    const payload = {
+      order_id: order.id,
+      order_date: new Date(order.createdAt).toISOString().split('T')[0],
+      pickup_location: "Primary",
+      billing_customer_name: order.userName,
+      billing_last_name: "",
+      billing_address: order.address,
+      billing_city: "Barara",
+      billing_pincode: "133201",
+      billing_state: "Haryana",
+      billing_country: "India",
+      billing_email: "customer@gmail.com",
+      billing_phone: "9876543210",
+      shipping_is_billing: true,
+      order_items: order.items.map(i => ({
+        name: i.name,
+        sku: i.productId,
+        units: i.quantity,
+        selling_price: i.price,
+        hsn: i.hsn || "7117"
+      })),
+      payment_method: order.paymentMethod === 'cod' ? 'COD' : 'Prepaid',
+      sub_total: order.subtotal,
+      length: 10, breadth: 10, height: 10, weight: 0.5
+    };
+    const res = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/adhoc', payload, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return res.data;
+  }
+};
+
+app.post('/api/admin/orders/:id/shiprocket', requireAdmin, async (req, res) => {
+  try {
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    
+    const token = await ShiprocketService.getToken();
+    if (!token) return res.status(500).json({ error: 'Could not connect to Shiprocket' });
+    
+    const srOrder = await ShiprocketService.createOrder(order, token);
+    
+    // Generate AWB automatically
+    const awbRes = await axios.post('https://apiv2.shiprocket.in/v1/external/courier/assign/awb', {
+      shipment_id: srOrder.shipment_id
+    }, { headers: { Authorization: `Bearer ${token}` } });
+    
+    await Order.findOneAndUpdate({ id: order.id }, {
+      shiprocketOrderId: srOrder.order_id,
+      shiprocketShipmentId: srOrder.shipment_id,
+      awbCode: awbRes.data.response.data.awb_code,
+      status: 'shipped',
+      $push: { timeline: { status: 'shipped', label: 'Order Shipped via Shiprocket', date: new Date(), done: true } }
+    });
+    
+    res.json({ success: true, awb: awbRes.data.response.data.awb_code });
+  } catch (err) { res.status(500).json({ error: err.response?.data?.message || err.message }); }
+});
+
+app.get('/api/admin/orders/:id/label', requireAdmin, async (req, res) => {
+  try {
+    const order = await Order.findOne({ id: req.params.id });
+    const token = await ShiprocketService.getToken();
+    const labelRes = await axios.post('https://apiv2.shiprocket.in/v1/external/courier/generate/label', {
+      shipment_id: [order.shiprocketShipmentId]
+    }, { headers: { Authorization: `Bearer ${token}` } });
+    res.json({ label_url: labelRes.data.label_url });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── OTP ROUTES ───────────────────────────────────────────────
 app.post('/api/otp/send', async (req, res) => {
   try {
@@ -300,11 +626,18 @@ app.post('/api/otp/verify', async (req, res) => {
 });
 
 
+app.get('/api/captcha', (req, res) => {
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  req.session.captcha = code;
+  res.json({ success: true, captcha: code });
+});
+
 // ─── AUTH ROUTES ──────────────────────────────────────────────
 app.post('/api/signup', async (req, res) => {
   try {
-    const { name, email, password, phone, gender, otpCode } = req.body;
+    const { name, email, password, phone, gender, otpCode, captcha } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, password required' });
+    if (captcha?.toUpperCase() !== req.session.captcha) return res.status(400).json({ error: 'Invalid CAPTCHA' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
     if (useDB) {
@@ -329,10 +662,18 @@ app.post('/api/signup', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, captchaAnswer } = req.body;
     if (useDB) {
       const user = await User.findOne({ email });
       if (!user) return res.status(400).json({ error: 'Invalid email or password' });
+      
+      // CAPTCHA check for admins
+      if (user.role === 'admin') {
+        if (!captchaAnswer || parseInt(captchaAnswer) !== req.session.captcha) {
+          return res.status(400).json({ error: 'Invalid or missing CAPTCHA answer' });
+        }
+      }
+
       if (!await bcrypt.compare(password, user.password)) return res.status(400).json({ error: 'Invalid email or password' });
       req.session.userId = user._id.toString(); req.session.role = user.role; req.session.name = user.name;
       const { password: _, ...safe } = user.toObject();
@@ -365,9 +706,14 @@ app.get('/api/me', async (req, res) => {
 
 app.put('/api/profile', requireAuth, async (req, res) => {
   try {
-    const { name, phone, address, gender } = req.body;
+    const { name, phone, address, gender, password, securityQuestion, securityAnswer } = req.body;
     if (useDB) {
-      const user = await User.findByIdAndUpdate(req.session.userId, { name, phone, address, gender }, { new: true }).select('-password');
+      const updates = { name, phone, address, gender };
+      if (password) updates.password = await bcrypt.hash(password, 10);
+      if (securityQuestion) updates.securityQuestion = securityQuestion;
+      if (securityAnswer) updates.securityAnswer = securityAnswer;
+      
+      const user = await User.findByIdAndUpdate(req.session.userId, updates, { new: true }).select('-password');
       req.session.name = user.name;
       return res.json({ success: true, user: { id: user._id, ...user.toObject() } });
     }
@@ -377,8 +723,42 @@ app.put('/api/profile', requireAuth, async (req, res) => {
     if (name) users[idx].name = name; if (phone) users[idx].phone = phone;
     if (address) users[idx].address = address; if (gender) users[idx].gender = gender;
     writeJson(FILES.users, users);
-    const { password, ...safe } = users[idx];
+    const { password: p, ...safe } = users[idx];
     res.json({ success: true, user: safe });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── CATEGORY (COLLECTION) API ────────────────────────────────
+app.get('/api/categories', async (req, res) => {
+  try {
+    if (useDB) {
+      const cats = await Category.find().sort('displayOrder');
+      return res.json(cats);
+    }
+    res.json([]); // JSON fallback categories
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/categories', requireAdmin, async (req, res) => {
+  try {
+    const { name, image, description, displayOrder } = req.body;
+    const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    const cat = await Category.create({ name, slug, image, description, displayOrder });
+    res.json({ success: true, category: cat });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
+  try {
+    const cat = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json({ success: true, category: cat });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/categories/:id', requireAdmin, async (req, res) => {
+  try {
+    await Category.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -427,12 +807,12 @@ app.post('/api/products', requireAdmin, upload.array('images', 5), async (req, r
     const { name, category, price, mrp, discount, stock, description, gstRate, hsn, featured } = req.body;
     const images = req.files?.length ? req.files.map(f => '/uploads/' + f.filename) : ['/images/p1.png'];
     if (useDB) {
-      const p = await Product.create({ name, category, price: +price, mrp: +mrp, discount: +(discount || 0), stock: +stock, description, images, gstRate: +(gstRate || 3), hsn: hsn || '7117', featured: featured === 'true' });
+      const p = await Product.create({ name, category, price: +price, mrp: +mrp, discount: +(discount || 0), stock: +stock, description, images, gstRate: +(gstRate || 18), hsn: hsn || '7117', featured: featured === 'true' });
       return res.json({ success: true, product: { ...p.toObject(), id: p._id } });
     }
     const products = readJson(FILES.products);
-    const p = { id: uuidv4(), name, category, price: +price, mrp: +mrp, discount: +(discount || 0), stock: +stock, description, images, gstRate: +(gstRate || 3), hsn: hsn || '7117', featured: featured === 'true', rating: 0, reviews: [], createdAt: new Date().toISOString() };
-    products.push(p); writeJson(FILES.products, p); // bug fix
+    const p = { id: uuidv4(), name, category, price: +price, mrp: +mrp, discount: +(discount || 0), stock: +stock, description, images, gstRate: +(gstRate || 18), hsn: hsn || '7117', featured: featured === 'true', rating: 0, reviews: [], createdAt: new Date().toISOString() };
+    products.push(p);
     writeJson(FILES.products, products);
     res.json({ success: true, product: p });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -623,15 +1003,28 @@ app.post('/api/orders', requireAuth, async (req, res) => {
     const grandTotal = subtotal + totalGst + shipping - discount;
     const orderId = 'LEN' + Date.now().toString().slice(-8).toUpperCase();
 
-    const orderData = { id: orderId, userId: req.session.userId, userName: req.session.name, items: orderItems, address, paymentMethod, subtotal, gstTotal: totalGst, shipping, discount, grandTotal, couponCode: couponCode || null, status: 'placed', timeline: [{ status: 'placed', label: 'Order Placed', date: new Date(), done: true }], estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), createdAt: new Date() };
+    const isCOD = paymentMethod === 'cod';
+    const status = isCOD ? 'placed' : 'awaiting_payment';
+    const timeline = isCOD 
+      ? [{ status: 'placed', label: 'Order Placed', date: new Date(), done: true }]
+      : [{ status: 'pending', label: 'Awaiting Payment', date: new Date(), done: true }];
+
+    const orderData = { 
+      id: orderId, userId: req.session.userId, userName: req.session.name, items: orderItems, 
+      address, paymentMethod, subtotal, gstTotal: totalGst, shipping, discount, grandTotal, 
+      couponCode: couponCode || null, status, timeline, 
+      estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), createdAt: new Date() 
+    };
 
     if (useDB) {
       await Order.create(orderData);
-      await Cart.findOneAndUpdate({ userId: req.session.userId }, { items: [] });
+      if (isCOD) await Cart.findOneAndUpdate({ userId: req.session.userId }, { items: [] });
     } else {
       const orders = readJson(FILES.orders); orders.push(orderData); writeJson(FILES.orders, orders);
-      const carts = readJson(FILES.carts); const ci = carts.findIndex(c => c.userId === req.session.userId);
-      if (ci > -1) { carts[ci].items = []; writeJson(FILES.carts, carts); }
+      if (isCOD) {
+        const carts = readJson(FILES.carts); const ci = carts.findIndex(c => c.userId === req.session.userId);
+        if (ci > -1) { carts[ci].items = []; writeJson(FILES.carts, carts); }
+      }
     }
     res.json({ success: true, order: orderData });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -738,6 +1131,75 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     const statusCounts = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
     res.json({ totalOrders: orders.length, totalRevenue: orders.reduce((s, o) => s + o.grandTotal, 0), todayOrders: todayOrders.length, todayRevenue: todayOrders.reduce((s, o) => s + o.grandTotal, 0), totalUsers: users.length, totalProducts: products.length, totalGstCollected: orders.reduce((s, o) => s + (o.gstTotal || 0), 0), statusCounts, recentOrders: orders.slice(-5).reverse() });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── INQUIRY ROUTES ───────────────────────────────────────────
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, email, message } = req.body;
+    if (!name || !email || !message) return res.status(400).json({ error: 'All fields are required' });
+    if (useDB) await Inquiry.create({ name, email, message });
+    else console.log('Contact Inquiry (Fallback):', { name, email, message });
+    res.json({ success: true, message: 'Inquiry received' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/inquiries', requireAdmin, async (req, res) => {
+  try {
+    const inquiries = useDB ? await Inquiry.find().sort({ createdAt: -1 }) : [];
+    res.json(inquiries);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/inquiries/:id', requireAdmin, async (req, res) => {
+  try {
+    if (useDB) await Inquiry.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── ADMIN TOOLS ──────────────────────────────────────────────
+app.put('/api/admin/clear-data', requireAdmin, async (req, res) => {
+  try {
+    if (!useDB) return res.status(400).json({ error: 'Database not connected' });
+    await Order.deleteMany({});
+    await Cart.deleteMany({});
+    await Wishlist.deleteMany({});
+    await Inquiry.deleteMany({});
+    res.json({ success: true, message: 'All test data cleared!' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/orders/:id/label-branded', requireAdmin, async (req, res) => {
+  try {
+    if (!useDB) return res.status(400).json({ error: 'Database not connected' });
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    const labelHTML = `
+      <!DOCTYPE html><html><head><title>Label - ${order.id}</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; padding: 20px; }
+        .label-card { width: 100mm; height: 150mm; border: 2px solid #000; padding: 15px; background: #fff; position: relative; }
+        .logo { font-size: 24px; font-weight: 800; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; }
+        .section { margin-bottom: 12px; border-bottom: 1px dashed #ccc; padding-bottom: 10px; }
+        .label { font-size: 10px; text-transform: uppercase; color: #666; font-weight: 700; }
+        .value { font-size: 14px; font-weight: 600; line-height: 1.4; }
+        .barcode { text-align: center; margin-top: 20px; border: 2px solid #000; padding: 10px; font-weight: 800; }
+      </style>
+      </head><body>
+      <div class="label-card">
+        <div class="logo"><span>✦ LENCHO ✦</span><span>SHIPROCKET AWB</span></div>
+        <div class="section"><div class="label">SHIP TO:</div><div class="value">${order.userName}<br/>${order.address}</div></div>
+        <div class="section"><div class="label">ORDER ID:</div><div class="value">${order.id}</div></div>
+        <div class="section"><div class="label">PAYMENT:</div><div class="value">${order.paymentMethod.toUpperCase()} (₹${order.grandTotal})</div></div>
+        <div class="barcode">*${order.id}*<br/><small>AWB: ${order.awbCode || 'PENDING'}</small></div>
+        <div style="position:absolute;bottom:15px;font-size:10px;">Lencho India - Luxury Redefined</div>
+      </div>
+      <script>window.onload = () => window.print();</script>
+      </body></html>
+    `;
+    res.send(labelHTML);
+  } catch (e) { res.status(500).send('Error'); }
 });
 
 app.get('/api/admin/orders', requireAdmin, async (req, res) => {
@@ -893,10 +1355,13 @@ app.get('/debug', (req, res) => {
 
 ['products', 'product', 'cart', 'checkout', 'orders', 'track', 'dashboard', 'admin', 'login', 'signup', 'wishlist']
   .forEach(page => { app.get(`/${page}`, sendIndex); app.get(`/${page}/:sub`, sendIndex); });
-const PORT = process.env.PORT || 3005;
+const PORT = process.env.PORT || 30054;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 app.listen(PORT, () => {
-  console.log(`\n🌟 Lencho API → http://localhost:${PORT}`);
+  console.log(`\n🌟 Lencho API → Running on port ${PORT}`);
+  console.log(`📌 Environment: ${NODE_ENV}`);
+  console.log(`🔗 CORS: Enabled for ${NODE_ENV === 'production' ? 'Production' : 'Development'}`);
   console.log(`   Admin Panel → /admin`);
   console.log(`   MongoDB: ${useDB ? '✅ Connected' : '⚠️  Using JSON fallback'}\n`);
 });

@@ -1,33 +1,109 @@
-/* ── ADMIN PANEL ───────────────────────────────────────────── */
 async function renderAdmin() {
-  // Agar login nahi, toh admin login form dikhao
-  if (!currentUser || currentUser.role !== 'admin') {
-    showAdminLogin();
-    return;
+  try {
+    const siteHeader = document.getElementById('site-header');
+    const siteFooter = document.getElementById('site-footer');
+    if (siteHeader) siteHeader.style.display = 'none';
+    if (siteFooter) siteFooter.style.display = 'none';
+
+    // 1. Check if setup is required
+    const status = await api('/api/admin/check-setup');
+    if (status.error) throw new Error(status.error);
+    
+    if (status.setupRequired) {
+      await showAdminSetup();
+      return;
+    }
+
+    // 2. Normal Login Flow
+    if (!currentUser || currentUser.role !== 'admin') {
+      await showAdminLogin();
+      return;
+    }
+    buildAdminPanel();
+  } catch (err) {
+    console.error('Admin Boot Error:', err);
+    document.getElementById('app').innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--dark);">
+        <div style="background:#fff;padding:2.5rem;border-radius:24px;max-width:400px;text-align:center;">
+          <h2 style="color:var(--rose-dark);margin-bottom:1rem;">System Boot Error</h2>
+          <p style="color:var(--gray);margin-bottom:1.5rem;">The admin module failed to initialize. This usually happens due to connection issues or security conflicts.</p>
+          <div style="background:#fef2f2;color:#991b1b;padding:10px;border-radius:8px;font-size:.8rem;margin-bottom:1.5rem;font-family:monospace;">${err.message}</div>
+          <button class="btn-primary full-width" onclick="location.reload()">Reload Admin Panel</button>
+        </div>
+      </div>`;
   }
-  buildAdminPanel();
 }
 
-function showAdminLogin() {
-  const footer = document.getElementById('site-footer');
-  if (footer) footer.style.display = 'none';
+function showAdminSetup() {
+  document.getElementById('app').innerHTML = `
+  <div style="min-height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;padding:2rem;">
+    <div style="background:#fff;border-radius:24px;padding:2.5rem;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div style="text-align:center;margin-bottom:2rem;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--rose);letter-spacing:.2em;margin-bottom:.5rem;">✦ LENCHO ✦</div>
+        <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;margin-bottom:.4rem;">Master Admin Setup</h2>
+        <p style="color:var(--gray);font-size:.875rem;">Create the primary administrative account</p>
+      </div>
+      <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="form-group"><label>Full Name</label><input type="text" id="setup-name" placeholder="Name"/></div>
+        <div class="form-group"><label>Phone Number</label><input type="text" id="setup-phone" placeholder="987xxxxxx"/></div>
+      </div>
+      <div class="form-group"><label>Email Address</label><input type="email" id="setup-email" placeholder="admin@lencho.in"/></div>
+      <div class="form-group"><label>Password</label><input type="password" id="setup-pass" placeholder="Password"/></div>
+      <div class="form-group">
+        <label>Security Question: Birthplace</label>
+        <input type="text" id="setup-answer" placeholder="Your birthplace (for recovery)"/>
+      </div>
+      <div id="setup-err" style="color:#ef4444;font-size:.8rem;margin-bottom:.75rem;"></div>
+      <button class="btn-primary full-width" onclick="handleAdminSetup()">
+        <i class="fas fa-check-circle"></i> Complete Master Registration
+      </button>
+    </div>
+  </div>`;
+}
+
+async function handleAdminSetup() {
+  const body = {
+    name: document.getElementById('setup-name').value,
+    phone: document.getElementById('setup-phone').value,
+    email: document.getElementById('setup-email').value,
+    password: document.getElementById('setup-pass').value,
+    securityQuestion: 'Birthplace',
+    securityAnswer: document.getElementById('setup-answer').value
+  };
+  const r = await api('/api/admin/setup', { method: 'POST', body });
+  if (r.error) { document.getElementById('setup-err').textContent = r.error; return; }
+  toast('Admin account created! Logging in...', 'success');
+  renderAdmin();
+}
+
+async function showAdminLogin() {
+  const captcha = await api('/api/captcha');
   document.getElementById('app').innerHTML = `
   <div style="min-height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;padding:2rem;">
     <div style="background:#fff;border-radius:24px;padding:2.5rem;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
       <div style="text-align:center;margin-bottom:2rem;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--rose);letter-spacing:.2em;margin-bottom:.5rem;">✦ LENCHO ✦</div>
         <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;margin-bottom:.4rem;">Admin Login</h2>
-        <p style="color:var(--gray);font-size:.875rem;">Enter admin credentials to continue</p>
+        <p style="color:var(--gray);font-size:.875rem;">Secure biometric/credential login</p>
       </div>
       <div class="form-group"><label>Email Address</label><input type="email" id="adm-email" placeholder="admin@example.com"/></div>
-      <div class="form-group"><label>Password</label><input type="password" id="adm-pass" placeholder="Password" onkeydown="if(event.key==='Enter')adminLogin()"/></div>
+      <div class="form-group"><label>Password</label><input type="password" id="adm-pass" placeholder="Password"/></div>
+      
+      <div style="background:var(--beige);padding:1rem;border-radius:12px;margin-bottom:1.5rem;">
+        <label style="font-size:.7rem;text-transform:uppercase;color:var(--gray);display:block;margin-bottom:5px;">Hacker Shield: Solve Math</label>
+        <div style="display:flex;align-items:center;gap:1rem;">
+          <div style="font-weight:700;font-size:1.2rem;color:var(--rose-dark);background:#fff;padding:5px 15px;border-radius:8px;border:1px solid #eee;">${captcha.question}</div>
+          <input type="number" id="adm-captcha" style="width:70px;text-align:center;" placeholder="?"/>
+        </div>
+      </div>
+
       <div id="adm-err" style="color:#ef4444;font-size:.8rem;margin-bottom:.75rem;min-height:20px;"></div>
       <button class="btn-primary full-width" onclick="adminLogin()">
-        <i class="fas fa-shield-alt"></i> Login to Admin Panel
+        <i class="fas fa-shield-alt"></i> Authorize Login
       </button>
-      <button class="btn-outline full-width" style="margin-top:.75rem;" onclick="navigate('/')">
-        <i class="fas fa-arrow-left"></i> Back to Website
-      </button>
+      <div style="text-align:center;margin-top:1rem;font-size:.8rem;color:var(--gray);">
+        <span style="cursor:pointer;" onclick="showRecovery()">Forgot Password?</span>
+      </div>
     </div>
   </div>`;
 }
@@ -35,20 +111,24 @@ function showAdminLogin() {
 async function adminLogin() {
   const email = document.getElementById('adm-email')?.value;
   const pass = document.getElementById('adm-pass')?.value;
+  const captcha = document.getElementById('adm-captcha')?.value;
   const err = document.getElementById('adm-err');
-  if (!email || !pass) { err.textContent = 'Please enter email and password'; return; }
-  err.textContent = '';
-  const r = await api('/api/login', { method: 'POST', body: { email, password: pass } });
-  if (r.error) { err.textContent = r.error; return; }
-  if (r.user.role !== 'admin') { err.textContent = 'This account does not have admin access'; return; }
+  
+  if (!email || !pass || !captcha) { err.textContent = 'Please fill all fields'; return; }
+  
+  const r = await api('/api/login', { method: 'POST', body: { email, password: pass, captchaAnswer: captcha } });
+  if (r.error) { 
+    err.textContent = r.error; 
+    showAdminLogin(); // Refresh captcha
+    return; 
+  }
   currentUser = r.user;
   updateHeader();
-  toast('Admin Panel Khul Gaya! ✦', 'success');
+  toast('Admin Authorization Granted! ✦', 'success');
   buildAdminPanel();
 }
 
 function buildAdminPanel() {
-  // Hide the main site header & footer on admin panel
   const siteHeader = document.getElementById('site-header');
   const siteFooter = document.getElementById('site-footer');
   const marquee = document.querySelector('.marquee-strip');
@@ -58,26 +138,28 @@ function buildAdminPanel() {
 
   const app = document.getElementById('app');
   app.innerHTML = `
-  <div class="admin-layout">
+  <div class="admin-layout light-theme">
+    <button class="admin-mob-toggle" onclick="document.getElementById('admin-sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
     <aside class="admin-sidebar" id="admin-sidebar">
       <div class="admin-logo">✦ LENCHO<br/><span style="font-size:.7rem;opacity:.6;letter-spacing:.05em;">Admin Panel</span></div>
       <nav class="admin-menu">
         <div class="admin-menu-item active" id="am-dashboard" onclick="adminTab('dashboard')"><i class="fas fa-chart-line" style="width:20px;"></i> Dashboard</div>
         <div class="admin-menu-item" id="am-orders" onclick="adminTab('orders')"><i class="fas fa-shopping-bag" style="width:20px;"></i> Orders</div>
         <div class="admin-menu-item" id="am-products" onclick="adminTab('products')"><i class="fas fa-gem" style="width:20px;"></i> Products</div>
-        <div class="admin-menu-item" id="am-add-product" onclick="adminTab('add-product')"><i class="fas fa-plus-circle" style="width:20px;"></i> Add Product</div>
+        <div class="admin-menu-item" id="am-collections" onclick="adminTab('collections')"><i class="fas fa-layer-group" style="width:20px;"></i> Collections</div>
+        <div class="admin-menu-item" id="am-inquiries" onclick="adminTab('inquiries')"><i class="fas fa-envelope-open-text" style="width:20px;"></i> Inquiries</div>
         <div class="admin-menu-item" id="am-users" onclick="adminTab('users')"><i class="fas fa-users" style="width:20px;"></i> Users</div>
-        <div class="admin-menu-item" id="am-gst" onclick="adminTab('gst')"><i class="fas fa-file-invoice" style="width:20px;"></i> GST Report</div>
-        <div class="admin-menu-item" id="am-discounts" onclick="adminTab('discounts')"><i class="fas fa-percent" style="width:20px;"></i> Discounts</div>
-        <div class="admin-menu-item" id="am-settings" onclick="adminTab('settings')"><i class="fas fa-cog" style="width:20px;"></i> Settings</div>
-        <div style="border-top:1px solid rgba(255,255,255,.1);margin-top:1rem;padding-top:1rem;">
+        <div class="admin-menu-item" id="am-gst" onclick="adminTab('gst')"><i class="fas fa-file-invoice" style="width:20px;"></i> GST Hub</div>
+        <div class="admin-menu-item" id="am-testimonials" onclick="adminTab('testimonials')"><i class="fas fa-comment-dots" style="width:20px;"></i> Testimonials</div>
+        <div class="admin-menu-item" id="am-settings" onclick="adminTab('settings')"><i class="fas fa-cog" style="width:20px;"></i> Store Settings</div>
+        <div style="border-top:1px solid rgba(0,0,0,.05);margin-top:1rem;padding-top:1rem;">
           <div class="admin-menu-item" onclick="exitAdmin()"><i class="fas fa-home" style="width:20px;"></i> View Site</div>
-          <div class="admin-menu-item" style="color:#ef9e9e;" onclick="handleLogout()"><i class="fas fa-sign-out-alt" style="width:20px;"></i> Logout</div>
+          <div class="admin-menu-item" style="color:#ef4444;" onclick="handleLogout()"><i class="fas fa-sign-out-alt" style="width:20px;"></i> Logout</div>
         </div>
       </nav>
     </aside>
     <main class="admin-main" id="admin-main">
-      <div id="admin-content"></div>
+      <div id="admin-content" style="padding:1.5rem;"></div>
     </main>
   </div>`;
   adminTab('dashboard');
@@ -96,11 +178,55 @@ function exitAdmin() {
 
 
 function adminTab(tab) {
-  document.querySelectorAll('.admin-menu-item').forEach(m => m.classList.remove('active'));
-  const el = document.getElementById('am-' + tab);
-  if (el) el.classList.add('active');
-  const tabs = { dashboard: adminDashboard, orders: adminOrders, products: adminProducts, 'add-product': adminAddProduct, users: adminUsers, gst: adminGST, discounts: adminDiscounts, settings: adminSettings };
-  if (tabs[tab]) tabs[tab]();
+  document.querySelectorAll('.admin-menu-item').forEach(e => e.classList.remove('active'));
+  const btn = document.getElementById('am-' + tab);
+  if (btn) btn.classList.add('active');
+  const sidebar = document.getElementById('admin-sidebar');
+  if (sidebar) sidebar.classList.remove('open'); // Close mobile menu
+
+  if (tab === 'dashboard') adminDashboard();
+  if (tab === 'orders') adminOrders();
+  if (tab === 'products') adminProducts();
+  if (tab === 'collections') adminCollections();
+  if (tab === 'inquiries') adminInquiries();
+  if (tab === 'users') adminUsers();
+  if (tab === 'gst') adminGST();
+  if (tab === 'testimonials') adminTestimonials();
+  if (tab === 'settings') adminSettings();
+}
+
+async function adminInquiries() {
+  const inquiries = await api('/api/admin/inquiries');
+  document.getElementById('admin-content').innerHTML = `
+    <div class="admin-header">
+      <h1 class="admin-page-title">Customer Inquiries (${inquiries.length})</h1>
+      <button class="btn-outline" onclick="adminTab('inquiries')"><i class="fas fa-sync"></i> Refresh</button>
+    </div>
+    <div class="admin-table-wrap">
+      <table>
+        <thead><tr><th>Details</th><th>Message</th><th>Received At</th><th>Actions</th></tr></thead>
+        <tbody>${inquiries.map(iq => `
+          <tr>
+            <td style="min-width:180px;">
+              <div style="font-weight:700;">${iq.name}</div>
+              <div style="font-size:.7rem;color:var(--gray);">${iq.email}</div>
+            </td>
+            <td><div style="font-size:.85rem;max-width:400px;line-height:1.4;">${iq.message}</div></td>
+            <td style="white-space:nowrap;font-size:.75rem;">${new Date(iq.createdAt).toLocaleString()}</td>
+            <td>
+              <button class="btn-sm btn-danger" onclick="deleteInquiry('${iq._id}')"><i class="fas fa-trash"></i></button>
+              <a href="mailto:${iq.email}" class="btn-sm btn-primary" style="text-decoration:none;"><i class="fas fa-reply"></i> Reply</a>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+async function deleteInquiry(id) {
+  if(!confirm('Delete this inquiry?')) return;
+  await api('/api/admin/inquiries/'+id, { method:'DELETE' });
+  adminInquiries();
 }
 
 async function adminDashboard() {
@@ -133,39 +259,57 @@ async function adminDashboard() {
 async function adminOrders() {
   const orders = await api('/api/admin/orders');
   const statusOpts = ['placed','confirmed','shipped','out_for_delivery','delivered','cancelled'].map(s=>`<option value="${s}">${s.replace('_',' ')}</option>`).join('');
-  const partners = ['Shiprocket','Delhivery','BlueDart','Ecom Express','XpressBees','Others'];
   
   document.getElementById('admin-content').innerHTML = `
-  <div class="admin-header"><h1 class="admin-page-title">Manage Orders (${orders.length})</h1></div>
+  <div class="admin-header">
+    <h1 class="admin-page-title">Manage Orders (${orders.length})</h1>
+    <div style="font-size: .8rem; color: var(--gray);">Integration: <span style="color:#22c55e;">● Shiprocket Active</span></div>
+  </div>
   <div class="admin-table-wrap">
     <table>
-      <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Amount</th><th>Status</th><th>Partner</th><th>Tracking</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Logistics (SR)</th><th>AWB / Tracking</th><th>Actions</th></tr></thead>
       <tbody>${orders.map(o=>`
       <tr>
-        <td><b style="color:var(--rose-dark);">${o.id}</b></td>
+        <td><b style="color:var(--rose-dark);">${o.id}</b><br/><span style="font-size:.65rem;color:var(--gray);text-transform:uppercase;">${o.paymentMethod}</span></td>
         <td>${formatDate(o.createdAt)}</td>
         <td>${o.userName}</td>
-        <td>${o.items.length} item${o.items.length>1?'s':''}</td>
         <td><b>${formatCurrency(o.grandTotal)}</b></td>
         <td id="status-${o.id}"><span class="order-status-badge status-${o.status}" style="font-size:.7rem;">${o.status.replace('_',' ')}</span></td>
         <td>
-           <select id="dp-${o.id}" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;">
-             <option value="">Partner</option>
-             ${partners.map(p=>`<option value="${p}" ${o.deliveryPartner===p?'selected':''}>${p}</option>`).join('')}
-           </select>
+          <select id="new-status-${o.id}" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;">${statusOpts}</select>
         </td>
-        <td><input id="tn-${o.id}" value="${o.trackingNumber||''}" placeholder="Track#" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;"/></td>
         <td>
-          <div style="display:flex;gap:4px;">
-            <select id="new-status-${o.id}" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;">${statusOpts}</select>
-            <button class="btn-primary btn-sm" onclick="updateOrderStatus('${o.id}')">Update</button>
-            <button class="btn-outline btn-sm" onclick="adminViewInvoice('${o.id}')"><i class="fas fa-file-invoice"></i></button>
+          <div style="font-size:.75rem;font-weight:700;">${o.awbCode || o.trackingNumber || '—'}</div>
+          <div style="font-size:.65rem;color:var(--gray);">${o.deliveryPartner || 'SR Auto'}</div>
+        </td>
+        <td>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+            <button class="btn-sm" onclick="updateOrderStatus('${o.id}')" title="Change Status"><i class="fas fa-edit"></i></button>
+            <button class="btn-sm btn-outline" onclick="adminViewInvoice('${o.id}')" title="Invoice"><i class="fas fa-file-invoice"></i></button>
+            <button class="btn-sm" onclick="window.open('/api/admin/orders/${o.id}/label-branded')" title="Generate Branded Label" style="background:#fef3c7;color:#92400e;border-color:#f59e0b;"><i class="fas fa-print"></i> Label</button>
+            ${o.awbCode ? `<button class="btn-sm btn-gold" onclick="adminShiprocketLabel('${o.id}')" title="SR Label"><i class="fas fa-download"></i> SR</button>` : `<button class="btn-sm" onclick="adminShiprocketShip('${o.id}')" title="Ship with Shiprocket" style="background:#e0f2fe;color:#0369a1;"><i class="fas fa-shipping-fast"></i> Ship</button>`}
           </div>
         </td>
       </tr>`).join('')}
       </tbody>
     </table>
   </div>`;
+}
+
+async function adminShiprocketShip(id) {
+  if (!confirm('Sync this order with Shiprocket and generate AWB?')) return;
+  toast('Initiating Shiprocket Sync...', 'info');
+  const r = await api(`/api/admin/orders/${id}/shiprocket`, { method: 'POST' });
+  if (r.error) { toast(r.error, 'error'); return; }
+  toast('AWB Generated: ' + r.awb, 'success');
+  adminOrders();
+}
+
+async function adminShiprocketLabel(id) {
+  const r = await api(`/api/admin/orders/${id}/label`);
+  if (r.error) { toast(r.error, 'error'); return; }
+  if (r.label_url) window.open(r.label_url, '_blank');
+  else toast('Label URL not generated yet', 'error');
 }
 
 async function updateOrderStatus(orderId) {
@@ -184,23 +328,24 @@ async function adminViewInvoice(orderId) { await downloadInvoice(orderId); }
 async function adminProducts() {
   const products = await api('/api/products');
   document.getElementById('admin-content').innerHTML = `
-  <div class="admin-header"><h1 class="admin-page-title">Products (${products.length})</h1><button class="btn-primary" onclick="adminTab('add-product')"><i class="fas fa-plus"></i> Add Product</button></div>
+  <div class="admin-header"><h1 class="admin-page-title">Catalog Inventory (${products.length})</h1><button class="btn-primary" onclick="adminTab('add-product')"><i class="fas fa-plus"></i> Add New Product</button></div>
   <div class="admin-table-wrap">
     <table>
-      <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>MRP</th><th>Stock</th><th>Featured</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>HSN Code</th><th>GST %</th><th>Featured</th><th>Actions</th></tr></thead>
       <tbody>${products.map(p=>`
       <tr>
-        <td><img src="${p.images[0]}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;"/></td>
-        <td><b>${p.name}</b></td>
-        <td style="text-transform:capitalize;">${p.category}</td>
-        <td>${formatCurrency(p.price)}</td>
-        <td style="color:var(--gray);text-decoration:line-through;">${formatCurrency(p.mrp)}</td>
-        <td><span style="color:${p.stock>10?'#22c55e':p.stock>0?'#f59e0b':'#ef4444'};font-weight:600;">${p.stock}</span></td>
-        <td>${p.featured?'<span style="color:#22c55e;">✓</span>':'<span style="color:#aaa;">—</span>'}</td>
+        <td><img src="${p.images[0]}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid #eee;"/></td>
+        <td><div style="font-weight:700;">${p.name}</div><div style="font-size:.7rem;color:var(--gray);">${p.id.substring(0,8)}...</div></td>
+        <td style="text-transform:capitalize;"><span class="product-badge" style="position:static;font-size:0.7rem;padding:3px 8px;">${p.category}</span></td>
+        <td><div style="font-weight:700;">${formatCurrency(p.price)}</div><div style="font-size:.7rem;color:var(--gray);text-decoration:line-through;">${formatCurrency(p.mrp)}</div></td>
+        <td><span style="color:${p.stock>10?'#22c55e':p.stock>0?'#f59e0b':'#ef4444'};font-weight:700;background:${p.stock>10?'#f0fdf4':'#fffbeb'};padding:4px 8px;border-radius:6px;">${p.stock}</span></td>
+        <td><code>${p.hsn || '7117'}</code></td>
+        <td><span style="font-weight:600;color:var(--rose);">${p.gstRate || 18}%</span></td>
+        <td>${p.featured?'<i class="fas fa-star" style="color:var(--gold);"></i>':'<span style="color:#aaa;">—</span>'}</td>
         <td>
           <div style="display:flex;gap:4px;">
-            <button class="btn-outline btn-sm" onclick="adminEditProduct('${p.id}')"><i class="fas fa-edit"></i></button>
-            <button class="btn-danger btn-sm" onclick="adminDeleteProduct('${p.id}','${p.name.replace(/'/g,'\\\'')}')" style="background:#fee2e2;color:#ef4444;border:1px solid #fca5a5;padding:6px 10px;border-radius:6px;"><i class="fas fa-trash"></i></button>
+            <button class="btn-outline btn-sm" onclick="adminEditProduct('${p.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+            <button class="btn-danger btn-sm" onclick="adminDeleteProduct('${p.id}','${p.name.replace(/'/g,'\\\'')}')" style="background:#fee2e2;color:#ef4444;border:1px solid #fca5a5;padding:6px 10px;border-radius:6px;" title="Delete"><i class="fas fa-trash"></i></button>
           </div>
         </td>
       </tr>`).join('')}
@@ -217,27 +362,21 @@ async function adminDeleteProduct(id, name) {
   adminProducts();
 }
 
-function adminAddProduct(product = null) {
+async function adminAddProduct(product = null) {
   const isEdit = !!product;
+  const cats = await api('/api/categories');
+  const catOptions = cats.length > 0 
+    ? cats.map(c => `<option value="${c.slug}" ${product?.category===c.slug?'selected':''}>${c.name}</option>`).join('')
+    : `<option value="others">Jewelry</option>`;
+
   document.getElementById('admin-content').innerHTML = `
   <div class="admin-header"><h1 class="admin-page-title">${isEdit?'Edit':'Add'} Product</h1></div>
   <div class="admin-form">
     <div class="form-grid">
       <div class="form-group"><label>Product Name *</label><input id="p-name" value="${product?.name||''}" placeholder="e.g. Rose Gold Hoop Earrings"/></div>
-      <div class="form-group"><label>Category *</label>
+      <div class="form-group"><label>Category Collection *</label>
         <select id="p-cat">
-          <option value="earrings" ${product?.category==='earrings'?'selected':''}>💍 Earrings (Jhumke / Studs / Hoops)</option>
-          <option value="necklace" ${product?.category==='necklace'?'selected':''}>📿 Necklace (Haar / Set)</option>
-          <option value="toe-rings" ${product?.category==='toe-rings'?'selected':''}>🦶 Toe Rings (Bichiye)</option>
-          <option value="rings" ${product?.category==='rings'?'selected':''}>💍 Rings (Angoothi)</option>
-          <option value="chains" ${product?.category==='chains'?'selected':''}>⛓️ Chains (Chain / Mangalsutra)</option>
-          <option value="payal" ${product?.category==='payal'?'selected':''}>🔔 Payal (Anklets)</option>
-          <option value="bangles" ${product?.category==='bangles'?'selected':''}>🔮 Bangles (Choodi / Kangan)</option>
-          <option value="bracelets" ${product?.category==='bracelets'?'selected':''}>📿 Bracelets</option>
-          <option value="maang-tikka" ${product?.category==='maang-tikka'?'selected':''}>✨ Maang Tikka</option>
-          <option value="nose-pin" ${product?.category==='nose-pin'?'selected':''}>💫 Nose Pin (Nath)</option>
-          <option value="hair-accessories" ${product?.category==='hair-accessories'?'selected':''}>🌸 Hair Accessories</option>
-          <option value="sets" ${product?.category==='sets'?'selected':''}>🎁 Bridal / Full Sets</option>
+          ${catOptions}
         </select>
       </div>
       <div class="form-group"><label>Selling Price (₹) *</label><input id="p-price" type="number" value="${product?.price||''}" placeholder="599"/></div>
@@ -429,7 +568,6 @@ function downloadGSTReport() {
   toast('GST Report downloaded! ✦', 'success');
 }
 
-/* ── ADMIN SETTINGS ──────────────────────────────────────────── */
 function adminSettings() {
   document.getElementById('admin-content').innerHTML = `
   <div class="admin-header"><h1 class="admin-page-title">⚙️ Admin Settings</h1></div>
@@ -437,7 +575,7 @@ function adminSettings() {
     <!-- Change Credentials -->
     <div class="admin-form">
       <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;margin-bottom:1.25rem;padding-bottom:.75rem;border-bottom:1px solid var(--border);">🔐 Change Login Credentials</h3>
-      <div class="form-group"><label>Current Password *</label><input type="password" id="set-cur-pass" placeholder="Apna current password daalo"/></div>
+      <div class="form-group"><label>Current Password *</label><input type="password" id="set-cur-pass" placeholder="Enter current password"/></div>
       <div class="form-group"><label>New Email (optional)</label><input type="email" id="set-new-email" placeholder="New email address" value="${currentUser?.email||''}"/></div>
       <div class="form-group"><label>Display Name</label><input id="set-name" placeholder="Admin name" value="${currentUser?.name||''}"/></div>
       <div class="form-group"><label>New Password (optional)</label><input type="password" id="set-new-pass" placeholder="New password (min 6 chars)"/></div>
@@ -445,54 +583,53 @@ function adminSettings() {
       <div id="set-err" style="color:#ef4444;font-size:.8rem;margin-bottom:.75rem;min-height:20px;"></div>
       <button class="btn-primary" onclick="saveAdminCredentials()"><i class="fas fa-save"></i> Save Credentials</button>
     </div>
-    <!-- Info Box -->
+
+    <!-- Administrative Tools -->
     <div>
-      <div class="admin-form" style="background:linear-gradient(135deg,#1a1a2e,#2d1b33);color:#fff;">
-        <h3 style="color:var(--gold-light);font-family:'Cormorant Garamond',serif;font-size:1.2rem;margin-bottom:1rem;">✦ Current Admin Info</h3>
-        <div style="display:flex;flex-direction:column;gap:.75rem;font-size:.875rem;">
-          <div><span style="color:rgba(255,255,255,.5);">Name:</span> <b style="color:#fff;">${currentUser?.name}</b></div>
-          <div><span style="color:rgba(255,255,255,.5);">Email:</span> <b style="color:#fff;">${currentUser?.email}</b></div>
-          <div><span style="color:rgba(255,255,255,.5);">Role:</span> <span style="background:#c9748f;color:#fff;padding:2px 10px;border-radius:99px;font-size:.75rem;">Admin</span></div>
-        </div>
-        <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.1);">
-          <p style="color:rgba(255,255,255,.5);font-size:.8rem;line-height:1.6;">⚠️ Credentials badalne ke baad dobara login karna hoga. Email aur password dono yaad rakhein.</p>
+      <div class="admin-form" style="margin-bottom:1.5rem;">
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;margin-bottom:1.25rem;padding-bottom:.75rem;border-bottom:1px solid var(--border);">🛠️ Administrative Tools</h3>
+        <div style="background:#fee2e2;padding:1.5rem;border-radius:12px;border:1.5px solid #fca5a5;">
+          <h4 style="color:#991b1b;margin-bottom:.5rem;">Clear System Data</h4>
+          <p style="font-size:.8rem;color:#7f1d1d;margin-bottom:1rem;">Permanently delete Orders, Inquiries, Carts, and Wishlists. Use only to clear test data.</p>
+          <button class="btn-danger" style="width:100%;font-weight:700;" onclick="clearTestData()"><i class="fas fa-trash-alt"></i> Clear All Test Data</button>
         </div>
       </div>
-      <div class="admin-form" style="margin-top:1.5rem;">
-        <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;margin-bottom:1rem;">📦 Quick Stats</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;" id="quick-stats"><div style="color:var(--gray);">Loading...</div></div>
+      
+      <div class="admin-form" style="background:var(--grad-rose);color:#fff;">
+        <h3 style="color:#fff;font-family:'Cormorant Garamond',serif;font-size:1.2rem;margin-bottom:1rem;">✦ Session Info</h3>
+        <div style="display:flex;flex-direction:column;gap:.75rem;font-size:.875rem;">
+          <div><span style="opacity:.7;">Login:</span> <b>${currentUser?.email}</b></div>
+          <div><span style="opacity:.7;">Status:</span> <span style="background:#fff;color:var(--rose);padding:2px 10px;border-radius:99px;font-size:.7rem;font-weight:700;">ACTIVE ADMIN</span></div>
+        </div>
       </div>
     </div>
   </div>`;
-  // Load quick stats
-  api('/api/admin/stats').then(s => {
-    const el = document.getElementById('quick-stats');
-    if (el && s.totalOrders !== undefined) el.innerHTML = `
-      <div style="text-align:center;padding:1rem;background:var(--light-gray);border-radius:8px;"><div style="font-size:1.4rem;font-weight:700;color:var(--rose-dark);">${s.totalOrders}</div><div style="font-size:.75rem;color:var(--gray);">Total Orders</div></div>
-      <div style="text-align:center;padding:1rem;background:var(--light-gray);border-radius:8px;"><div style="font-size:1.4rem;font-weight:700;color:var(--rose-dark);">${s.totalUsers}</div><div style="font-size:.75rem;color:var(--gray);">Customers</div></div>
-      <div style="text-align:center;padding:1rem;background:var(--light-gray);border-radius:8px;"><div style="font-size:1.4rem;font-weight:700;color:var(--rose-dark);">${formatCurrency(s.totalRevenue)}</div><div style="font-size:.75rem;color:var(--gray);">Revenue</div></div>
-      <div style="text-align:center;padding:1rem;background:var(--light-gray);border-radius:8px;"><div style="font-size:1.4rem;font-weight:700;color:var(--rose-dark);">${s.totalProducts||'—'}</div><div style="font-size:.75rem;color:var(--gray);">Products</div></div>`;
-  });
+}
+
+async function clearTestData() {
+  if(!confirm('🚨 WARNING: This will delete ALL orders and inquiries. Are you absolutely sure?')) return;
+  const pass = prompt('Please enter your CURRENT ADMIN PASSWORD to confirm:');
+  if(!pass) return;
+  const r = await api('/api/admin/clear-data', { method:'PUT', body:{ password:pass } });
+  if(r.success) { toast('System data cleared successfully!', 'success'); adminDashboard(); }
+  else { toast(r.error || 'Failed to clear data', 'error'); }
 }
 
 async function saveAdminCredentials() {
-  const curPass = document.getElementById('set-cur-pass')?.value;
-  const newEmail = document.getElementById('set-new-email')?.value;
-  const name = document.getElementById('set-name')?.value;
-  const newPass = document.getElementById('set-new-pass')?.value;
-  const confPass = document.getElementById('set-conf-pass')?.value;
-  const err = document.getElementById('set-err');
-  if (!curPass) { err.textContent = 'Current password required'; return; }
-  if (newPass && newPass !== confPass) { err.textContent = 'New passwords do not match'; return; }
-  if (newPass && newPass.length < 6) { err.textContent = 'Password minimum 6 characters hona chahiye'; return; }
-  err.textContent = '';
-  const r = await api('/api/admin/change-credentials', { method: 'PUT', body: { currentPassword: curPass, newEmail, newPassword: newPass || undefined, name } });
-  if (r.error) { err.textContent = r.error; return; }
-  currentUser = { ...currentUser, name: r.user.name, email: r.user.email };
-  updateHeader();
-  toast('✦ Credentials updated! Please note new login details.', 'success');
-  adminSettings();
+  const currentPassword = document.getElementById('set-cur-pass').value;
+  const newEmail = document.getElementById('set-new-email').value;
+  const newPassword = document.getElementById('set-new-pass').value;
+  const confirm = document.getElementById('set-conf-pass').value;
+  const name = document.getElementById('set-name').value;
+  
+  if(!currentPassword) return document.getElementById('set-err').textContent = 'Current password required';
+  if(newPassword && newPassword !== confirm) return document.getElementById('set-err').textContent = 'Passwords do not match';
+  
+  const r = await api('/api/admin/change-credentials', { method:'PUT', body: { currentPassword, newEmail, newPassword, name } });
+  if(r.error) document.getElementById('set-err').textContent = r.error;
+  else { toast('Credentials updated! Please login again.', 'success'); handleLogout(); }
 }
+
 
 async function adminDiscounts() {
   const items = await api('/api/admin/discounts');
@@ -513,3 +650,243 @@ async function adminDiscounts() {
   </div>`;
 }
 
+// ── TESTIMONIALS MANAGEMENT ─────────────────────────────────
+async function adminTestimonials() {
+  document.getElementById('admin-content').innerHTML = `
+    <div class="admin-header"><h1 class="admin-page-title">Manage Testimonials</h1><button class="btn-primary" onclick="showAddTestimonial()">+ Add Review</button></div>
+    <div id="testi-list-container" class="admin-table-wrap">Loading...</div>
+  `;
+  const t = await api('/api/testimonials');
+  const grid = document.getElementById('testi-list-container');
+  grid.innerHTML = `
+    <table>
+      <thead><tr><th>Name</th><th>City</th><th>Rating</th><th>Comment</th><th>Actions</th></tr></thead>
+      <tbody>${t.map(item => `
+        <tr>
+          <td><b>${item.name}</b></td>
+          <td>${item.city}</td>
+          <td>${item.rating} ⭐</td>
+          <td style="max-width:300px; font-size:.8rem;">${item.comment}</td>
+          <td><button class="btn-danger btn-sm" onclick="deleteTestimonial('${item._id}')" style="background:#fee2e2;color:#ef4444;border:none;padding:5px 10px;border-radius:4px;"><i class="fas fa-trash"></i></button></td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+}
+
+function showAddTestimonial() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-card" style="padding:2rem;">
+      <h3>Add Customer Reference</h3>
+      <div class="form-group"><label>Customer Name</label><input id="nt-name" placeholder="e.g. Priya Sharma"/></div>
+      <div class="form-group"><label>City</label><input id="nt-city" placeholder="e.g. Mumbai"/></div>
+      <div class="form-group"><label>Rating</label><select id="nt-rating"><option value="5">5 Stars</option><option value="4">4 Stars</option></select></div>
+      <div class="form-group"><label>Comment</label><textarea id="nt-comment" rows="3"></textarea></div>
+      <div style="display:flex;gap:1rem;">
+        <button class="btn-primary" onclick="saveTestimonial()">Add Testimonial</button>
+        <button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveTestimonial() {
+  const body = {
+    name: document.getElementById('nt-name').value,
+    city: document.getElementById('nt-city').value,
+    rating: document.getElementById('nt-rating').value,
+    comment: document.getElementById('nt-comment').value
+  };
+  const r = await api('/api/admin/testimonials', { method: 'POST', body });
+  if (r.error) { toast(r.error, 'error'); return; }
+  toast('Reference added! ✦', 'success');
+  document.querySelector('.modal-overlay').remove();
+  adminTestimonials();
+}
+
+async function deleteTestimonial(id) {
+  if (!confirm('Delete this testimonial?')) return;
+  await api('/api/admin/testimonials/' + id, { method: 'DELETE' });
+  adminTestimonials();
+}
+
+// ── COLLECTIONS (A-Z) ────────────────────────────────────────
+async function adminCollections() {
+  const cats = await api('/api/categories');
+  const products = await api('/api/products');
+  
+  // Calculate counts
+  const counts = products.reduce((acc, p) => { 
+    acc[p.category] = (acc[p.category] || 0) + 1; 
+    return acc; 
+  }, {});
+
+  document.getElementById('admin-content').innerHTML = `
+    <div class="admin-header">
+      <h1 class="admin-page-title">Product Collections (${cats.length})</h1>
+      <button class="btn-primary" onclick="showAddCategory()"><i class="fas fa-plus"></i> New Collection</button>
+    </div>
+    
+    <div class="stats-grid" style="margin-bottom:2rem;">
+      <div class="stat-card"><div class="stat-label">Total Categories</div><div class="stat-value">${cats.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Active Slugs</div><div class="stat-value">${cats.filter(c=>c.slug).length}</div></div>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table>
+        <thead><tr><th>Showcase</th><th>Name</th><th>Slug</th><th>Product Count</th><th>Actions</th></tr></thead>
+        <tbody>${cats.map(c => `
+            <td>
+              <button class="btn-sm btn-outline" onclick="viewCategoryProducts('${c.slug}')"><i class="fas fa-boxes"></i> Inventory</button>
+              <button class="btn-sm" onclick="deleteCategory('${c._id}')" style="background:#fee2e2;color:#ef4444;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+
+    <div id="category-inventory" style="margin-top:3rem;display:none;">
+      <div class="admin-header">
+        <h2 id="inv-title" class="admin-page-title">Inventory: <span>All Products</span></h2>
+        <button class="btn-outline" onclick="document.getElementById('category-inventory').style.display='none'">Close</button>
+      </div>
+      <div class="admin-table-wrap">
+        <table id="inv-table">
+          <thead><tr><th>Product</th><th>Original Price</th><th>Stock Status</th><th>Action</th></tr></thead>
+          <tbody id="inv-body"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function viewCategoryProducts(slug) {
+  const products = await api('/api/products?category=' + slug);
+  const container = document.getElementById('category-inventory');
+  const body = document.getElementById('inv-body');
+  const title = document.querySelector('#inv-title span');
+  
+  title.innerText = slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : 'All Products';
+  body.innerHTML = products.map(p => {
+    let statusClass = 'status-instock';
+    let statusText = 'IN STOCK';
+    if(p.stock <= 0) { statusClass = 'status-outofstock'; statusText = 'OUT OF STOCK'; }
+    else if(p.stock < 5) { statusClass = 'status-fewstock'; statusText = 'FEW STOCK ('+p.stock+')'; }
+    
+    return `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:15px;">
+            <img src="${p.image}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;"/>
+            <div style="font-weight:600;">${p.name}</div>
+          </div>
+        </td>
+        <td>${formatCurrency(p.price)}</td>
+        <td><span class="stock-badge ${statusClass}">${statusText}</span></td>
+        <td><button class="btn-sm" onclick="adminEditProduct('${p.id}')"><i class="fas fa-edit"></i> Edit</button></td>
+      </tr>
+    `;
+  }).join('');
+  
+  container.style.display = 'block';
+  container.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function showAddCategory() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-card">
+      <h3>Add New Collection</h3>
+      <div class="form-group"><label>Name (e.g. Earrings)</label><input id="nc-name" placeholder="Name"/></div>
+      <div class="form-group"><label>Image URL</label><input id="nc-image" placeholder="Image URL"/></div>
+      <div class="form-group"><label>Description</label><textarea id="nc-desc" rows="2"></textarea></div>
+      <div style="display:flex;gap:1rem;">
+        <button class="btn-primary" onclick="saveCategory()">Create Collection</button>
+        <button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveCategory() {
+  const body = {
+    name: document.getElementById('nc-name').value,
+    image: document.getElementById('nc-image').value,
+    description: document.getElementById('nc-desc').value
+  };
+  const r = await api('/api/admin/categories', { method: 'POST', body });
+  if (r.error) { toast(r.error, 'error'); return; }
+  toast('Collection Added! ✦', 'success');
+  document.querySelector('.modal-overlay').remove();
+  adminCollections();
+}
+
+async function deleteCategory(id) {
+  if (!confirm('Delete this collection?')) return;
+  await api('/api/admin/categories/' + id, { method: 'DELETE' });
+  adminCollections();
+}
+
+// ── SECURITY SETTINGS ────────────────────────────────────────
+async function adminSecuritySettings() {
+  const u = currentUser;
+  document.getElementById('admin-content').innerHTML = `
+    <div class="admin-header"><h1 class="admin-page-title">Lock & Security Settings</h1></div>
+    <div class="admin-form" style="max-width:600px;">
+      <div class="form-group"><label>Full Name</label><input id="sec-name" value="${u.name}"/></div>
+      <div class="form-group"><label>Email Address</label><input id="sec-email" value="${u.email}"/></div>
+      <div class="form-group"><label>Phone Number</label><input id="sec-phone" value="${u.phone||''}"/></div>
+      <div class="form-group"><label>Security Question: Birthplace</label><input id="sec-answer" value="${u.securityAnswer||''}" placeholder="Your answer"/></div>
+      <div class="form-group"><label>New Password (Optional)</label><input id="sec-pass" type="password" placeholder="Leave blank to keep current"/></div>
+      <button class="btn-primary" onclick="saveSecuritySettings()"><i class="fas fa-save"></i> Update Credentials</button>
+    </div>
+  `;
+}
+
+async function saveSecuritySettings() {
+  const body = {
+    name: document.getElementById('sec-name').value,
+    email: document.getElementById('sec-email').value,
+    phone: document.getElementById('sec-phone').value,
+    securityAnswer: document.getElementById('sec-answer').value
+  };
+  const pass = document.getElementById('sec-pass').value;
+  if (pass) body.password = pass;
+
+  const r = await api('/api/profile', { method: 'PUT', body });
+  if (r.error) { toast(r.error, 'error'); return; }
+  currentUser = r.user;
+  toast('Admin credentials saved successfully! ✦', 'success');
+}
+
+function showRecovery() {
+  document.getElementById('app').innerHTML = `
+  <div style="min-height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;padding:2rem;">
+    <div style="background:#fff;border-radius:24px;padding:2.5rem;max-width:400px;width:100%;">
+      <h2 style="font-family:'Cormorant Garamond',serif;margin-bottom:1rem;">Account Recovery</h2>
+      <div class="form-group"><label>Registered Email</label><input id="rec-email" type="email"/></div>
+      <div class="form-group"><label>Security Question: Birthplace</label><input id="rec-answer" type="text"/></div>
+      <div class="form-group"><label>New Password</label><input id="rec-pass" type="password"/></div>
+      <div id="rec-err" style="color:#ef4444;font-size:.8rem;margin-bottom:1rem;"></div>
+      <button class="btn-primary full-width" onclick="handleRecovery()">Reset Password</button>
+      <button class="btn-outline full-width" style="margin-top:10px;" onclick="renderAdmin()">Back to Login</button>
+    </div>
+  </div>`;
+}
+
+async function handleRecovery() {
+  const body = {
+    email: document.getElementById('rec-email').value,
+    securityAnswer: document.getElementById('rec-answer').value,
+    newPassword: document.getElementById('rec-pass').value
+  };
+  const r = await api('/api/admin/forgot-password', { method: 'POST', body });
+  if (r.error) { document.getElementById('rec-err').textContent = r.error; return; }
+  toast('Password reset success! Please login.', 'success');
+  renderAdmin();
+}

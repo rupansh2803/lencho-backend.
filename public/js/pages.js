@@ -9,75 +9,152 @@ async function renderProductDetail(id) {
   app.innerHTML = `
   <div class="product-detail-container container reveal">
     <div class="product-detail-grid">
-      <!-- LEFT: IMAGES -->
+      <!-- TOP: IMAGES - HORIZONTAL THUMBS AT TOP -->
       <div class="product-gallery">
-        <div class="main-img-wrap">
-          <img id="main-product-img" src="${p.images[0]}" alt="${p.name}"/>
-          ${discountVal ? `<span class="badge-large">${discountVal}% OFF</span>` : ''}
-        </div>
-        <div class="thumb-grid">
+        <div class="gallery-thumbs-top">
           ${p.images.map((img, i) => `
-            <div class="thumb ${i === 0 ? 'active' : ''}" onclick="changeMainImg('${img}', this)">
+            <div class="thumb-item ${i === 0 ? 'active' : ''}" onclick="setThumb(this, '${img}')">
               <img src="${img}" alt="Thumbnail ${i + 1}"/>
             </div>
           `).join('')}
         </div>
+        <div class="gallery-main">
+          <img id="main-product-img" src="${p.images[0]}" alt="${p.name}"/>
+          ${discountVal ? `<span class="badge-large">${discountVal}% OFF</span>` : ''}
+        </div>
       </div>
 
-      <!-- RIGHT: INFO -->
-      <div class="product-info">
-          <span class="stars" style="font-size:1rem;">${renderStars(p.rating||0)}</span>
-          ${p.reviews?.length ? `<span class="rating-count" style="margin-left:6px;">(${p.reviews.length} reviews)</span>` : ''}
+      <!-- RIGHT: PRODUCT DETAILS - AMAZON STYLE -->
+      <div class="product-info-amazon">
+        <h1 class="product-title">${p.name}</h1>
+        
+        <div class="rating-and-reviews">
+          <span class="stars">${renderStars(p.rating||0)}</span>
+          ${p.reviews?.length ? `<span class="review-count">${p.reviews.length} ${p.reviews.length === 1 ? 'review' : 'reviews'}</span>` : '<span class="review-count">No reviews yet</span>'}
         </div>
-        <div class="product-price-lg">
+
+        <div class="price-section">
           <span class="price-current">${formatCurrency(p.price)}</span>
-          ${p.mrp?`<span class="price-mrp">${formatCurrency(p.mrp)}</span>`:''}
-          ${p.discount?`<span class="price-off">${p.discount}% off</span>`:''}
+          ${p.mrp ? `<span class="price-mrp">${formatCurrency(p.mrp)}</span>` : ''}
+          ${discountVal ? `<span class="discount-badge">${discountVal}% OFF</span>` : ''}
         </div>
-        <div class="product-description-wrap">
-          <p class="product-description desc-collapsed" id="prod-desc">${p.description}</p>
-          ${p.description && p.description.length > 150 ? `<span class="see-more-btn" onclick="toggleDesc(this)">See More</span>` : ''}
+
+        <div class="delivery-info-amazon">
+          <div class="delivery-row">
+            <i class="fas fa-shipping-fast"></i>
+            <span>Free delivery above ₹999 | Standard: 3-5 days</span>
+          </div>
+          <div class="delivery-row">
+            <i class="fas fa-undo"></i>
+            <span>7-Day Returns | Easy exchange</span>
+          </div>
+          <div class="delivery-row">
+            <i class="fas fa-shield-alt"></i>
+            <span>100% Authentic | GST Invoice Available</span>
+          </div>
         </div>
-        <div class="product-meta">
-          <span><i class="fas fa-box" style="color:var(--rose);width:20px;"></i> <strong>Stock:</strong> ${p.stock > 10 ? 'In Stock' : p.stock > 0 ? `Only ${p.stock} left!` : 'Out of Stock'}</span>
-          <span><i class="fas fa-tag" style="color:var(--rose);width:20px;"></i> <strong>Category:</strong> ${p.category}</span>
-          <span><i class="fas fa-percent" style="color:var(--rose);width:20px;"></i> <strong>GST:</strong> ${p.gstRate}% (HSN: ${p.hsn})</span>
-          <span><i class="fas fa-truck" style="color:var(--rose);width:20px;"></i> <strong>Delivery:</strong> Free on orders ₹999+</span>
+
+        <div class="stock-info">
+          <strong>Availability:</strong> 
+          <span class="${p.stock > 10 ? 'stock-available' : p.stock > 0 ? 'stock-limited' : 'stock-unavailable'}">
+            ${p.stock > 10 ? '✓ In Stock' : p.stock > 0 ? `⚠ Only ${p.stock} left` : '✗ Out of Stock'}
+          </span>
         </div>
-        <div class="product-ctas">
-          <button class="btn-outline" onclick="addToCart('${p.id}')" ${p.stock===0?'disabled':''}>
+
+        <div class="product-actions">
+          <button class="btn-add-to-cart" onclick="addToCart('${p.id}')" ${p.stock===0?'disabled':''}>
             <i class="fas fa-shopping-bag"></i> Add to Cart
           </button>
-          <button class="btn-gold" onclick="buyNow('${p.id}')" ${p.stock===0?'disabled':''}>
-            <i class="fas fa-bolt"></i> Buy Now
-          </button>
-          <button class="btn-wishlist" onclick="toggleWishlist('${p.id}',this)">
-            <i class="fas fa-heart"></i> Add to Wishlist
+          <button class="btn-wishlist-large" onclick="toggleWishlist('${p.id}',this)">
+            <i class="fas fa-heart"></i> Wishlist
           </button>
         </div>
-        <div style="margin-top:1.5rem;padding:1rem;background:var(--beige);border-radius:var(--radius-sm);font-size:.8rem;display:flex;gap:2rem;">
-          <span><i class="fas fa-undo" style="color:var(--rose);"></i> 7-Day Returns</span>
-          <span><i class="fas fa-shield-alt" style="color:var(--rose);"></i> 100% Authentic</span>
-          <span><i class="fas fa-award" style="color:var(--rose);"></i> Premium Quality</span>
+
+        <div class="product-specs">
+          <div class="spec-row">
+            <span class="spec-label">Category:</span>
+            <span class="spec-value">${p.category}</span>
+          </div>
+          <div class="spec-row">
+            <span class="spec-label">Style:</span>
+            <span class="spec-value">Premium Handcrafted</span>
+          </div>
         </div>
+
+        <!-- PREMIUM ACCORDION SECTION -->
+        <div class="specs-accordion" style="margin-top:2rem;border-top:1px solid var(--border);">
+          <div class="spec-item active" style="border-bottom:1px solid var(--border);">
+            <div class="spec-header" onclick="toggleSpec(this)" style="padding:15px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:700;font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--dark);">
+              <span>✦ Description</span>
+              <i class="fas fa-chevron-down" style="font-size:.8rem;transition:transform .3s;"></i>
+            </div>
+            <div class="spec-body" style="padding-bottom:15px;color:var(--gray);line-height:1.6;font-size:.95rem;">
+              ${p.description || 'No description available.'}
+            </div>
+          </div>
+          <div class="spec-item" style="border-bottom:1px solid var(--border);">
+            <div class="spec-header" onclick="toggleSpec(this)" style="padding:15px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:700;font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--dark);">
+              <span>✦ Product Information</span>
+              <i class="fas fa-chevron-down" style="font-size:.8rem;transition:transform .3s;"></i>
+            </div>
+            <div class="spec-body" style="padding-bottom:15px;display:none;">
+              <table class="details-table" style="width:100%;font-size:.9rem;border-collapse:collapse;">
+                <tr style="border-bottom:1px solid #f9f9f9;"><td style="padding:8px 0;color:var(--gray);width:40%;">Category</td><td style="padding:8px 0;font-weight:600;text-transform:capitalize;">${p.category}</td></tr>
+                <tr style="border-bottom:1px solid #f9f9f9;"><td style="padding:8px 0;color:var(--gray);">Material</td><td style="padding:8px 0;font-weight:600;">Premium Alloy / Gold Plated</td></tr>
+                <tr style="border-bottom:1px solid #f9f9f9;"><td style="padding:8px 0;color:var(--gray);">Occasion</td><td style="padding:8px 0;font-weight:600;">Wedding / Party / Festive</td></tr>
+                <tr><td style="padding:8px 0;color:var(--gray);">Finish</td><td style="padding:8px 0;font-weight:600;">High Gloss Premium</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="spec-item" style="border-bottom:1px solid var(--border);">
+            <div class="spec-header" onclick="toggleSpec(this)" style="padding:15px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:700;font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--dark);">
+              <span>✦ Shipping & Returns</span>
+              <i class="fas fa-chevron-down" style="font-size:.8rem;transition:transform .3s;"></i>
+            </div>
+            <div class="spec-body" style="padding-bottom:15px;display:none;color:var(--gray);font-size:.9rem;line-height:1.6;">
+              <ul style="padding-left:1.5rem;margin:5px 0;">
+                <li>Free shipping on all orders above ₹999.</li>
+                <li>Estimated delivery time: 3-5 business days across India.</li>
+                <li>7-day easy returns and exchange policy.</li>
+                <li>GST invoice will be provided with the package.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        ${p.description ? `
+          <div class="about-section">
+            <h3>About This Item</h3>
+            <ul class="about-list">
+              <li>Premium artificial jewellery with authentic gemstone designs</li>
+              <li>Anti-allergic & skin-friendly composition</li>
+              <li>Lightweight and comfortable for all-day wear</li>
+              <li><strong>${p.name}</strong> - Perfect for weddings, parties, and daily wear</li>
+              <li>Handcrafted with precision and love</li>
+              <li>7-Day Returns | Easy exchange policy available</li>
+              <li>GST Invoice provided with every order</li>
+            </ul>
+          </div>
+        ` : ''}
       </div>
     </div>
 
-    <!-- REVIEWS -->
+    <!-- REVIEWS SECTION BELOW -->
     <div class="reviews-section">
-      <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;margin-bottom:1.5rem;">Customer Reviews</h2>
-      <div id="reviews-list">
-        ${p.reviews && p.reviews.length ? p.reviews.map(r=>`
-          <div class="review-card">
-            <div class="review-header">
-              <div><span class="reviewer-name">${r.userName}</span><div class="stars" style="font-size:.85rem;">${renderStars(r.rating)}</div></div>
-              <span class="review-date">${formatDate(r.date)}</span>
-            </div>
-            <p class="review-text">${r.comment}</p>
-          </div>`).join('') : '<p style="color:var(--gray);">No reviews yet. Be the first to review!</p>'}
-      </div>
+      <h2>Customer Reviews</h2>
+      <div id="reviews-list">`
+      + (p.reviews && p.reviews.length ? p.reviews.map(r=>`
+        <div class="review-card">
+          <div class="review-header">
+            <span class="reviewer-name">${r.userName}</span>
+            <div class="stars" style="font-size:.85rem;">${renderStars(r.rating)}</div>
+            <span class="review-date">${formatDate(r.date)}</span>
+          </div>
+          <p class="review-text">${r.comment}</p>
+        </div>`).join('') : '<p style="color:var(--gray);">No reviews yet. Be the first to review!</p>')
+      + `</div>
       <div class="add-review">
-        <h3 style="font-family:\'Cormorant Garamond\',serif;font-size:1.3rem;margin-bottom:1rem;">Write a Review</h3>
+        <h3>Write a Review</h3>
         <div class="form-group"><label>Rating</label>
           <div id="star-picker" style="display:flex;gap:.5rem;font-size:1.5rem;color:#ddd;cursor:pointer;">
             ${[1,2,3,4,5].map(n=>`<span onclick="setReviewRating(${n})" onmouseover="hoverRating(${n})" onmouseout="resetRatingHover()" data-val="${n}">★</span>`).join('')}
@@ -86,16 +163,64 @@ async function renderProductDetail(id) {
         </div>
         <div class="form-group"><label>Your Review</label><textarea id="review-comment" rows="3" placeholder="Share your experience..." style="resize:none;"></textarea></div>
         <button class="btn-primary" onclick="submitReview('${p.id}')">Submit Review</button>
+        <div style="text-align:center;padding:1rem;background:var(--beige);border-radius:10px;color:var(--rose-dark);cursor:pointer;margin-top:1rem;" onclick="showAddReview('${p.id}')">Write a Review</div>
+      </div>
+    </div>
+
+    <!-- RECOMMENDED PRODUCTS SECTION -->
+    <div style="margin-top:5rem;">
+      <div class="section-header reveal">
+        <h2 class="section-title">Recommended For You</h2>
+        <div class="divider"></div>
+        <p class="section-desc">Handpicked styles to complete your look</p>
+      </div>
+      <div class="products-grid" id="recommended-grid">
+         <div style="grid-column:1/-1;text-align:center;color:var(--gray);">Looking for matching styles...</div>
       </div>
     </div>
   </div>`;
+
+  window.scrollTo(0, 0);
   initScrollReveal();
+  loadRecommended(p.category, p.id);
+}
+
+async function loadRecommended(category, currentId) {
+  const grid = document.getElementById('recommended-grid');
+  if (!grid) return;
+  try {
+    const products = await api('/api/products');
+    if (products && products.length > 0) {
+      const filtered = products.filter(item => item.id !== currentId).slice(0, 4);
+      grid.innerHTML = filtered.map(item => `
+        <div class="product-card reveal" onclick="navigate('/product/${item.id}')">
+          <div class="product-img-wrap">
+            <img class="product-img" src="${item.images[0]}" alt="${item.name}"/>
+            ${item.discount ? `<div class="product-badge">${item.discount}% OFF</div>` : ''}
+          </div>
+          <div class="product-body">
+            <div class="product-name">${item.name}</div>
+            <div class="product-price">
+               <span class="price-current">${formatCurrency(item.price)}</span>
+               <span class="price-mrp">${formatCurrency(item.mrp)}</span>
+            </div>
+            <button class="btn-primary full-width">View Details</button>
+          </div>
+        </div>
+      `).join('');
+      initScrollReveal();
+    } else {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;">More products coming soon!</div>';
+    }
+  } catch (err) {
+    console.error('Recommended error:', err);
+  }
 }
 
 function setThumb(el, src) {
-  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.gallery-thumbs-top .thumb-item').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('main-img').src = src;
+  document.getElementById('main-product-img').src = src;
 }
 
 function setReviewRating(n) {
@@ -255,18 +380,12 @@ async function renderCheckout() {
         <div class="checkout-section">
           <h3><i class="fas fa-credit-card" style="color:var(--rose);margin-right:.5rem;"></i> Payment Method</h3>
           <div class="payment-options">
-            <div class="payment-option selected" id="pay-upi" onclick="selectPayment('upi')">
-              <input type="radio" name="pay" checked/><span class="pay-icon">📱</span><label>UPI (Google Pay, PhonePe, etc.)</label>
-            </div>
-            <div class="payment-option" id="pay-card" onclick="selectPayment('card')">
-              <input type="radio" name="pay"/><span class="pay-icon">💳</span><label>Credit / Debit Card</label>
+            <div class="payment-option selected" id="pay-online" onclick="selectPayment('online')">
+              <input type="radio" name="pay" checked/><span class="pay-icon">✨</span><label>Online Payment (UPI, Cards, Netbanking)</label>
             </div>
             <div class="payment-option" id="pay-cod" onclick="selectPayment('cod')">
               <input type="radio" name="pay"/><span class="pay-icon">💵</span><label>Cash on Delivery (COD)</label>
             </div>
-          </div>
-          <div id="upi-field" style="margin-top:1rem;">
-            <div class="form-group"><label>UPI ID</label><input id="upi-id" placeholder="yourname@upi"/></div>
           </div>
         </div>
       </div>
@@ -289,13 +408,12 @@ async function renderCheckout() {
   </div>`;
 }
 
-let selectedPayment = 'upi';
+let selectedPayment = 'online';
 function selectPayment(method) {
   selectedPayment = method;
   document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
   document.getElementById('pay-' + method).classList.add('selected');
   document.getElementById('pay-' + method).querySelector('input').checked = true;
-  document.getElementById('upi-field').style.display = method === 'upi' ? 'block' : 'none';
 }
 
 async function placeOrder() {
@@ -306,13 +424,61 @@ async function placeOrder() {
   const state = document.getElementById('co-state')?.value;
   const pin = document.getElementById('co-pin')?.value;
   if (!name || !phone || !addr1 || !city || !state || !pin) { toast('Please fill all address fields', 'error'); return; }
+  
   const r = await api('/api/cart');
   const items = r.items || [];
   const couponData = JSON.parse(sessionStorage.getItem('coupon') || 'null');
   const address = `${name}, ${addr1}, ${document.getElementById('co-addr2')?.value||''}, ${city}, ${state} - ${pin}, India. Ph: ${phone}`;
   const orderItems = items.map(i => ({ productId: i.productId, quantity: i.quantity }));
+
+  // 1. Create Order record (status: pending if online)
   const result = await api('/api/orders', { method: 'POST', body: { address, paymentMethod: selectedPayment, items: orderItems, couponCode: couponData?.code } });
   if (result.error) { toast(result.error, 'error'); return; }
+  
+  const order = result.order;
+
+  if (selectedPayment === 'cod') {
+    handleOrderSuccess(order);
+  } else {
+    // 2. Handle Razorpay
+    try {
+      const publicSettings = await api('/api/settings/public');
+      // Create Razorpay Order
+      const rzpOrder = await api('/api/razorpay/order', { method: 'POST', body: { amount: order.grandTotal, receipt: order.id } });
+      
+      const options = {
+        key: publicSettings.razorpayKeyId || 'rzp_test_6oE5E0WwH6wX9z',
+        amount: rzpOrder.amount,
+        currency: "INR",
+        name: "Lencho India",
+        description: `Order #${order.id}`,
+        image: "/favicon.svg",
+        order_id: rzpOrder.id,
+        handler: async function (response) {
+          // 3. Verify Payment
+          const verify = await api('/api/razorpay/verify', { 
+            method: 'POST', 
+            body: { ...response, orderId: order.id } 
+          });
+          if (verify.success) {
+            handleOrderSuccess(order);
+          } else {
+            toast('Payment verification failed. Contact support.', 'error');
+          }
+        },
+        prefill: { name: currentUser.name, email: currentUser.email, contact: currentUser.phone },
+        theme: { color: "#c9748f" }
+      };
+      const rzp1 = new Razorpay(options);
+      rzp1.open();
+    } catch (err) {
+      toast('Payment gateway initialization failed', 'error');
+      console.error(err);
+    }
+  }
+}
+
+function handleOrderSuccess(order) {
   sessionStorage.removeItem('coupon');
   updateCartCount();
   toast('Order placed successfully! 🎉', 'success', 5000);
@@ -321,8 +487,8 @@ async function placeOrder() {
   <div class="page-wrap" style="text-align:center;padding-top:80px;">
     <div style="font-size:5rem;margin-bottom:1.5rem;animation:popIn .5s ease;">✅</div>
     <h1 style="font-family:'Cormorant Garamond',serif;font-size:2.5rem;margin-bottom:1rem;">Order Placed!</h1>
-    <p style="color:var(--gray);font-size:1.1rem;margin-bottom:.5rem;">Your order <strong style="color:var(--rose-dark);">${result.order.id}</strong> is confirmed!</p>
-    <p style="color:var(--gray);margin-bottom:2rem;">Expected delivery: ${formatDate(result.order.estimatedDelivery)}</p>
+    <p style="color:var(--gray);font-size:1.1rem;margin-bottom:.5rem;">Your order <strong style="color:var(--rose-dark);">${order.id}</strong> is confirmed!</p>
+    <p style="color:var(--gray);margin-bottom:2rem;">Expected delivery: ${formatDate(order.estimatedDelivery)}</p>
     <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
       <button class="btn-primary" onclick="navigate('/dashboard')">My Orders</button>
       <button class="btn-outline" onclick="navigate('/track')">Track Order</button>
@@ -453,4 +619,12 @@ function toggleDesc(btn) {
     p.classList.add('desc-collapsed');
     btn.textContent = 'See More';
   }
+}
+
+function toggleSpec(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('i');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }

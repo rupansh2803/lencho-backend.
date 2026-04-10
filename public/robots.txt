@@ -1,0 +1,30 @@
+# Lencho Robots.txt - Allow search engines to index
+User-agent: *
+Disallow: /admin
+Disallow: /api
+Disallow: /uploads/private
+Disallow: /*.json$
+Disallow: /*?sort=
+Allow: /
+Allow: /public/
+
+# Sitemaps
+Sitemap: https://lencho.in/sitemap.xml
+
+# Crawl delay (optional)
+Crawl-delay: 1
+
+# Specific rules for Google
+User-agent: Googlebot
+Allow: /
+
+# Specific rules for Bing
+User-agent: Bingbot
+Allow: /
+
+# Block bad bots
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
