@@ -634,15 +634,33 @@ async function submitContact() {
   }
 }
 
-function startOfferTimer() {
-  const timerEl = document.getElementById('offer-timer');
+async function startOfferTimer() {
+  const timerEl = document.getElementById('promo-timer');
   if (!timerEl) return;
+  
+  // Wait for settings to load if needed, or fetch directly
+  const s = await api('/api/settings');
+  const end = s.saleEndDate ? new Date(s.saleEndDate) : new Date(Date.now() + 86400000);
+
   function updateTimer() {
-    const now = new Date(), midnight = new Date(); midnight.setHours(24, 0, 0, 0); const diff = midnight - now;
-    const hours = Math.floor(diff / (1000 * 60 * 60)), minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)), seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    timerEl.textContent = `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+    const now = new Date();
+    const diff = end - now;
+    if (diff <= 0) {
+      document.getElementById('t-hours').textContent = '00';
+      document.getElementById('t-mins').textContent = '00';
+      document.getElementById('t-secs').textContent = '00';
+      return;
+    }
+    const hours = Math.floor(diff / (1000 * 60 * 60)),
+          minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          
+    document.getElementById('t-hours').textContent = String(hours).padStart(2, '0');
+    document.getElementById('t-mins').textContent = String(minutes).padStart(2, '0');
+    document.getElementById('t-secs').textContent = String(seconds).padStart(2, '0');
   }
-  updateTimer(); setInterval(updateTimer, 1000);
+  updateTimer(); 
+  const timerInt = setInterval(updateTimer, 1000);
 }
 
 function createParticles() {

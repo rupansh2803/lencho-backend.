@@ -864,6 +864,16 @@ tr:hover td{background:var(--beige)}
 .footer-bottom{padding:1.5rem 0;text-align:center;border-top:none}
 .footer-bottom p{font-size:.8rem;color:rgba(255,255,255,.35);margin-bottom:.3rem}
 
+/* ── LOGO AESTHETIC UPGRADE ── */
+.logo-img, .loader-logo img {
+  filter: brightness(0) invert(1) !important;
+  transition: filter 0.3s ease;
+}
+.header-scrolled .logo-img {
+  /* Optional: stay white or go back to black if header is light */
+  filter: brightness(0) invert(1) !important; 
+}
+
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media(max-width:1024px){
   .categories-grid{grid-template-columns:repeat(3,1fr)}

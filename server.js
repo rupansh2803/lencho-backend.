@@ -1444,20 +1444,30 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // ── PUBLIC SETTINGS ─────────────────────────────────────────
 app.get('/api/settings', async (req, res) => {
   try {
-    const s = await Settings.findOne() || {};
-    res.json({
-      storeName: s.storeName,
-      storeEmail: s.storeEmail,
-      storePhone: s.storePhone,
-      storeAddress: s.storeAddress,
-      whatsappNumber: s.whatsappNumber,
-      facebookLink: s.facebookLink,
-      instagramLink: s.instagramLink,
-      twitterLink: s.twitterLink,
-      whatsappLink: s.whatsappLink,
-      saleEndDate: s.saleEndDate,
-      shippingNote: s.shippingNote
-    });
+    if (useDB) {
+      const rows = await Settings.find();
+      const obj = {};
+      rows.forEach(r => obj[r.key] = r.value);
+      return res.json(obj);
+    }
+    res.json({ storeName: 'Lencho', storeEmail: 'hello@lencho.in' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/settings', requireAdmin, async (req, res) => {
+  try {
+    if (!useDB) return res.status(400).json({ error: 'Database not connected' });
+    const updates = req.body;
+    const keys = Object.keys(updates);
+    
+    for (const key of keys) {
+      await Settings.findOneAndUpdate(
+        { key },
+        { value: updates[key] },
+        { upsert: true, new: true }
+      );
+    }
+    res.json({ success: true, message: 'Settings updated successfully' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
