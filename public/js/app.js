@@ -717,7 +717,7 @@ async function sortProducts(sort, category) {
 
 async function loadPublicSettings() {
   try {
-    const s = await api('/api/settings/public');
+    const s = await api('/api/settings');
     const wb = document.getElementById('whatsapp-btn');
     if (wb && s.whatsappNumber) wb.href = 'https://wa.me/' + s.whatsappNumber + '?text=Hi%20Lencho%20India!';
   } catch (e) { }
@@ -745,10 +745,10 @@ window.onload = () => {
   loadUser();
   syncCartCount();
   syncSocialLinks();
-  initHeader();
   loadPublicSettings();
   navigate(location.pathname + location.search, false);
   setTimeout(() => {
-    document.getElementById('loading-screen').classList.add('hidden');
-  }, 2000);
+    const ls = document.getElementById('loading-screen');
+    if (ls) ls.classList.add('hidden');
+  }, 1000);
 };
