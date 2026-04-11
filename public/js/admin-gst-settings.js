@@ -307,7 +307,61 @@ async function adminSettings() {
     <button class="btn-primary" onclick="saveStoreSettings()">
       <i class="fas fa-save"></i> Save Store Settings
     </button>
+  </div>
+
+  <!-- EMAIL / SMTP SECURITY SETTINGS -->
+  <div class="admin-form" style="margin-top:2rem;">
+    <h3>📧 Email & Security (OTP System)</h3>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;">
+      <div class="form-group">
+        <label>SMTP Host</label>
+        <input type="text" id="s-smtp-host" value="${s.smtpHost || 'smtp.gmail.com'}"/>
+      </div>
+      <div class="form-group">
+        <label>SMTP Port</label>
+        <input type="number" id="s-smtp-port" value="${s.smtpPort || 465}"/>
+      </div>
+      <div class="form-group">
+        <label>Gmail/SMTP User</label>
+        <input type="email" id="s-smtp-user" value="${s.smtpUser || ''}" placeholder="username@gmail.com"/>
+      </div>
+      <div class="form-group">
+        <label>Gmail App Password</label>
+        <input type="password" id="s-smtp-pass" value="${s.smtpPass || ''}" placeholder="xxxx xxxx xxxx xxxx"/>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <div class="form-group">
+        <label>OTP Email Subject</label>
+        <input type="text" id="s-otp-subject" value="${s.otpSubject || ''}" placeholder="Your Verification Code: {{otp}}"/>
+      </div>
+      <div class="form-group">
+        <label>OTP Email Body (HTML support)</label>
+        <textarea id="s-otp-body" style="height:120px;resize:vertical;font-family:monospace;font-size:0.85rem;">${s.otpBody || ''}</textarea>
+        <p style="font-size:0.75rem;color:var(--gray);margin-top:0.25rem;">Use <code>{{otp}}</code> as a placeholder for the code.</p>
+      </div>
+    </div>
+    <div style="background:#fefce8;padding:1rem;border-radius:8px;border:1px solid #fef08a;margin-bottom:1rem;font-size:0.8rem;color:#854d0e;">
+      <b>Note:</b> For Gmail, use an "App Password" from your Google Account security settings. Regular passwords will not work.
+    </div>
+    <button class="btn-primary" onclick="saveSMTPSettings()">
+      <i class="fas fa-envelope-lock"></i> Save Email Security Settings
+    </button>
   </div>`;
+}
+
+async function saveSMTPSettings() {
+  const data = {
+    smtpHost: document.getElementById('s-smtp-host')?.value || 'smtp.gmail.com',
+    smtpPort: parseInt(document.getElementById('s-smtp-port')?.value) || 465,
+    smtpUser: document.getElementById('s-smtp-user')?.value || '',
+    smtpPass: document.getElementById('s-smtp-pass')?.value || '',
+    otpSubject: document.getElementById('s-otp-subject')?.value || '',
+    otpBody: document.getElementById('s-otp-body')?.value || ''
+  };
+  const r = await api('/api/admin/settings', { method: 'POST', body: data });
+  if (r.error) toast('Error saving SMTP: ' + r.error, 'error');
+  else toast('✅ SMTP Security settings saved!', 'success');
 }
 
 async function saveShippingSettings() {

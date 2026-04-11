@@ -41,8 +41,18 @@ window.addEventListener('popstate', () => navigate(location.pathname + location.
 
 // ── API HELPER ────────────────────────────────────────────
 async function api(url, opts = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  return res.json();
+  try {
+    const res = await fetch(url, { 
+      headers: { 'Content-Type': 'application/json' }, 
+      ...opts, 
+      body: opts.body ? JSON.stringify(opts.body) : undefined 
+    });
+    const data = await res.json();
+    return data;
+  } catch (e) {
+    console.error('API Error:', e);
+    return { error: 'Server connection issue. Please ensure the backend is running.' };
+  }
 }
 // ── TOAST ─────────────────────────────────────────────────
 function toast(msg, type = 'info', dur = 3000) {
@@ -108,27 +118,70 @@ async function handleLogin() {
   const email = document.getElementById('login-email').value;
   const password = document.getElementById('login-password').value;
   const err = document.getElementById('login-error');
-  err.textContent = '';
-  const r = await api('/api/login', { method: 'POST', body: { email, password } });
-  if (r.error) { err.textContent = r.error; return; }
-  currentUser = r.user;
-  updateHeader();
-  closeAuthModal();
-  toast('Welcome back, ' + r.user.name + '! ✦', 'success');
-  updateCartCount();
-  if (r.user.role === 'admin') navigate('/admin');
+  if(!email || !password) { err.textContent = 'Please enter email and password'; return; }
+  
+  window.pendingAuth = { type: 'login', email, password };
+  sendEmailOTP(email, 'auth-login-form', 'login-error');
 }
 
 async function handleSignup() {
   const name = document.getElementById('signup-name').value;
   const email = document.getElementById('signup-email').value;
   const password = document.getElementById('signup-password').value;
-  const captcha = document.getElementById('signup-captcha').value;
+  const phone = document.getElementById('signup-phone').value;
   const err = document.getElementById('signup-error');
+  if(!name || !email || !password) { err.textContent = 'Please fill all required fields'; return; }
+
+  window.pendingAuth = { type: 'signup', name, email, password, phone };
+  sendEmailOTP(email, 'auth-signup-form', 'signup-error');
+}
+
+async function sendEmailOTP(email, currentFormId, errorId) {
+  const err = document.getElementById(errorId);
+  const btnId = currentFormId === 'auth-login-form' ? 'login-btn' : 'signup-btn';
+  const btn = document.getElementById(btnId);
+  err.textContent = '';
+  
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending OTP... ✦'; }
+  
+  const resp = await api('/api/otp/send-email', { method: 'POST', body: { email } });
+  
+  if (btn) { btn.disabled = false; btn.textContent = currentFormId === 'auth-login-form' ? 'Sign In' : 'Create Account ✦'; }
+  
+  if (resp.error) { err.textContent = resp.error; return; }
+  
+  document.getElementById(currentFormId).style.display = 'none';
+  document.getElementById('auth-otp-step').style.display = 'block';
+  toast('OTP sent to your email! 📧', 'success');
+}
+
+async function verifyEmailOTP() {
+  const otp = document.getElementById('auth-otp-input').value;
+  const err = document.getElementById('otp-error');
+  const email = window.pendingAuth.email;
+  
+  const resp = await api('/api/otp/verify-email', { method: 'POST', body: { email, otp } });
+  if (resp.error) { err.textContent = resp.error; return; }
+
+  // OTP Verified, now complete the original action
+  const p = window.pendingAuth;
+  const endpoint = p.type === 'login' ? '/api/login' : '/api/signup';
+  const finalResp = await api(endpoint, { method: 'POST', body: p });
+  
+  if (finalResp.error) { err.textContent = finalResp.error; return; }
+  
+  currentUser = finalResp.user;
   updateHeader();
   closeAuthModal();
-  toast('🎉 Welcome to Lencho! Account created successfully!', 'success');
+  toast(`Welcome ${currentUser.name}! ✦`, 'success');
   updateCartCount();
+  if (currentUser.role === 'admin') navigate('/admin');
+}
+
+function resendEmailOTP() {
+  if (window.pendingAuth && window.pendingAuth.email) {
+    sendEmailOTP(window.pendingAuth.email, 'auth-otp-step', 'otp-error');
+  }
 }
 
 function toggleDesc(btn) {

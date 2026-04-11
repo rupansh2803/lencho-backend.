@@ -199,20 +199,14 @@ async function seedAdmin() {
   const phone = '7404217625';
 
   if (useDB) {
-    let admin = await User.findOne({ role: 'admin' });
-    if (admin) {
-      admin.email = email;
-      admin.password = await bcrypt.hash(pass, 10);
-      admin.phone = phone;
-      admin.securityQuestion = 'Birthplace';
-      admin.securityAnswer = 'Admin';
-      await admin.save();
-      console.log(`✅ Admin credentials force-updated to: ${email}`);
-    } else {
-      const hashedPass = await bcrypt.hash(pass, 10);
-      await User.create({ name: 'Admin', email, password: hashedPass, role: 'admin', phone, isVerified: true, securityQuestion: 'Birthplace', securityAnswer: 'Admin' });
-      console.log(`✅ Admin created: ${email}`);
-    }
+    const hashedPass = await bcrypt.hash(pass, 10);
+    // Force specific user to be admin with these credentials
+    await User.findOneAndUpdate(
+      { email }, 
+      { name: 'Admin', email, password: hashedPass, role: 'admin', phone, isVerified: true, securityQuestion: 'Birthplace', securityAnswer: 'Admin' }, 
+      { upsert: true, new: true }
+    );
+    console.log(`✅ Admin master account synced: ${email}`);
   }
 }
 
@@ -233,13 +227,26 @@ async function seedSettings() {
       { key: 'storeEmail', value: 'hello@lencho.in', label: 'Store Email' },
       { key: 'storePhone', value: '+91 9876543210', label: 'Store Phone' },
       { key: 'gstin', value: '27XXXXX1234X1ZX', label: 'GSTIN Number' },
-      { key: 'saleEndDate', value: new Date(Date.now() + 86400000).toISOString(), label: 'Sale End Date (ISO)' }
+      { key: 'saleEndDate', value: new Date(Date.now() + 86400000).toISOString(), label: 'Sale End Date (ISO)' },
+      { key: 'smtpHost', value: 'smtp.gmail.com', label: 'SMTP Host' },
+      { key: 'smtpPort', value: 465, label: 'SMTP Port' },
+      { key: 'smtpUser', value: '', label: 'SMTP User (Gmail)' },
+      { key: 'smtpPass', value: '', label: 'SMTP Pass (App Password)' },
+      { key: 'otpSubject', value: '✦ Your LENCHO Verification Code: {{otp}} ✦', label: 'OTP Email Subject' },
+      { key: 'otpBody', value: '<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:2rem;border:1px solid #eee;border-radius:12px;"><h2 style="color:#c9748f;text-align:center;">✦ LENCHO ✦</h2><p>Hello,</p><p>Your verification code is <b style="font-size:1.5rem;color:#c9748f;">{{otp}}</b></p><p style="color:gray;font-size:0.8rem;">This code is valid for 5 minutes. Do not share it with anyone.</p></div>', label: 'OTP Email Body (HTML)' }
     ]);
     console.log('✅ Default settings seeded');
   } else {
     // Add missing keys
     const exist = await Settings.findOne({ key: 'saleEndDate' });
     if (!exist) await Settings.create({ key: 'saleEndDate', value: new Date(Date.now() + 86400000).toISOString(), label: 'Sale End Date (ISO)' });
+    
+    // Support OTP Template updates
+    const otpExist = await Settings.findOne({ key: 'otpSubject' });
+    if (!otpExist) {
+       await Settings.create({ key: 'otpSubject', value: '✦ Your LENCHO Verification Code: {{otp}} ✦', label: 'OTP Email Subject' });
+       await Settings.create({ key: 'otpBody', value: '<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:2rem;border:1px solid #eee;border-radius:12px;"><h2 style="color:#c9748f;text-align:center;">✦ LENCHO ✦</h2><p>Hello,</p><p>Your verification code is <b style="font-size:1.5rem;color:#c9748f;">{{otp}}</b></p><p style="color:gray;font-size:0.8rem;">This code is valid for 5 minutes. Do not share it with anyone.</p></div>', label: 'OTP Email Body (HTML)' });
+    }
   }
 }
 
@@ -634,6 +641,65 @@ app.post('/api/otp/verify', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/otp/send-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    if (useDB) {
+      await OTPLog.deleteMany({ target: email, used: false });
+      await OTPLog.create({ target: email, code: otp, type: 'email_login', expiresAt });
+    } else {
+      req.session.pendingEmailOTP = { email, code: otp, expiresAt: expiresAt.toISOString() };
+    }
+
+    const host = await getSetting('smtpHost', 'smtp.gmail.com');
+    const port = await getSetting('smtpPort', 465);
+    const user = await getSetting('smtpUser', '');
+    const pass = await getSetting('smtpPass', '');
+    const subjectTpl = await getSetting('otpSubject', 'Your Verification Code: {{otp}}');
+    const bodyTpl = await getSetting('otpBody', 'Your OTP is {{otp}}');
+
+    if (!user || !pass) return res.status(500).json({ error: 'SMTP not configured in admin settings' });
+
+    const transporter = nodemailer.createTransport({
+      host, port: +port, secure: +port === 465,
+      auth: { user, pass }
+    });
+
+    await transporter.sendMail({
+      from: `"Lencho Secure" <${user}>`,
+      to: email,
+      subject: subjectTpl.replace('{{otp}}', otp),
+      html: bodyTpl.replace('{{otp}}', otp)
+    });
+
+    res.json({ success: true, message: 'OTP sent! Check your inbox.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/otp/verify-email', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ error: 'Email and OTP required' });
+
+    if (useDB) {
+      const log = await OTPLog.findOne({ target: email, code: otp, used: false, expiresAt: { $gt: new Date() } });
+      if (!log) return res.status(400).json({ error: 'Invalid or expired OTP' });
+      log.used = true; await log.save();
+    } else {
+      const pending = req.session.pendingEmailOTP;
+      if (!pending || pending.email !== email || pending.code !== otp) return res.status(400).json({ error: 'Invalid OTP' });
+      if (new Date(pending.expiresAt) < new Date()) return res.status(400).json({ error: 'OTP expired' });
+    }
+
+    res.json({ success: true, verified: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 
 app.get('/api/captcha', (req, res) => {
   const n1 = Math.floor(Math.random() * 10) + 1;
@@ -646,25 +712,21 @@ app.get('/api/captcha', (req, res) => {
 // ─── AUTH ROUTES ──────────────────────────────────────────────
 app.post('/api/signup', async (req, res) => {
   try {
-    const { name, email, password, phone, gender, otpCode, captcha } = req.body;
+    const { name, email, password, phone, gender } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, password required' });
-    if (captcha?.toUpperCase() !== req.session.captcha) return res.status(400).json({ error: 'Invalid CAPTCHA' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
     if (useDB) {
       if (await User.findOne({ email })) return res.status(400).json({ error: 'Email already registered' });
-      // OTP Verification removed as requested
       const hashed = await bcrypt.hash(password, 10);
       const user = await User.create({ name, email, password: hashed, phone: phone || '', gender: gender || 'female', isVerified: true });
       req.session.userId = user._id.toString(); req.session.role = user.role; req.session.name = user.name;
       const { password: _, ...safe } = user.toObject();
       return res.json({ success: true, user: { id: safe._id, ...safe } });
     }
-    // JSON fallback
     const users = readJson(FILES.users);
     if (users.find(u => u.email === email)) return res.status(400).json({ error: 'Email already registered' });
     const hashed = await bcrypt.hash(password, 10);
-    const user = { id: uuidv4(), name, email, password: hashed, phone: phone || '', gender: gender || 'female', role: 'user', isVerified: !!otpCode, address: '', createdAt: new Date().toISOString() };
+    const user = { id: uuidv4(), name, email, password: hashed, phone: phone || '', gender: gender || 'female', role: 'user', isVerified: true, address: '', createdAt: new Date().toISOString() };
     users.push(user); writeJson(FILES.users, users);
     req.session.userId = user.id; req.session.role = user.role; req.session.name = user.name;
     return res.json({ success: true, user: { id: user.id, name, email, role: user.role } });
@@ -1149,8 +1211,40 @@ app.post('/api/contact', async (req, res) => {
   try {
     const { name, email, message } = req.body;
     if (!name || !email || !message) return res.status(400).json({ error: 'All fields are required' });
+    
     if (useDB) await Inquiry.create({ name, email, message });
     else console.log('Contact Inquiry (Fallback):', { name, email, message });
+
+    // Notify Admin via Email
+    try {
+      const host = await getSetting('smtpHost', 'smtp.gmail.com');
+      const port = await getSetting('smtpPort', 465);
+      const user = await getSetting('smtpUser', '');
+      const pass = await getSetting('smtpPass', '');
+      const storeEmail = await getSetting('storeEmail', 'rupanshsaini17@gmail.com');
+
+      if (user && pass) {
+        const transporter = nodemailer.createTransport({
+          host, port: +port, secure: +port === 465,
+          auth: { user, pass }
+        });
+        await transporter.sendMail({
+          from: `"Lencho System" <${user}>`,
+          to: storeEmail,
+          subject: '🔔 New Customer Inquiry - Lencho India',
+          html: `
+            <div style="font-family:sans-serif;padding:2rem;border:1px solid #eee;border-radius:12px;">
+              <h2 style="color:#c9748f;">New Message Recieved</h2>
+              <p><b>From:</b> ${name} (${email})</p>
+              <p><b>Message:</b></p>
+              <div style="background:#f9f9f9;padding:1rem;border-radius:8px;">${message}</div>
+              <p style="margin-top:1.5rem;"><a href="${req.headers.origin}/admin" style="color:#c9748f;font-weight:700;text-decoration:none;">View in Admin Panel →</a></p>
+            </div>
+          `
+        });
+      }
+    } catch (err) { console.error('Inquiry Email Notify Error:', err.message); }
+
     res.json({ success: true, message: 'Inquiry received' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
