@@ -1421,6 +1421,57 @@ app.get('/api/ai/trending', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── GOOGLE OAUTH ROUTE ──────────────────────────────────────
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: 'No credential provided' });
+    
+    // Decode JWT payload (middle part) – no external library needed
+    const parts = credential.split('.');
+    if (parts.length !== 3) return res.status(400).json({ error: 'Invalid credential format' });
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    
+    const { email, name, picture, sub: googleId } = payload;
+    if (!email) return res.status(400).json({ error: 'Could not get email from Google' });
+    
+    let user;
+    if (useDB) {
+      user = await User.findOne({ email }).lean();
+      if (!user) {
+        // Create new user with Google account
+        const newUser = new User({ 
+          name, email, 
+          password: 'GOOGLE_AUTH_' + googleId, 
+          googleId,
+          avatar: picture,
+          role: 'user',
+          verified: true
+        });
+        await newUser.save();
+        user = newUser.toObject();
+      }
+    } else {
+      const users = readJson(FILES.users);
+      user = users.find(u => u.email === email);
+      if (!user) {
+        user = { id: Date.now().toString(), name, email, googleId, role: 'user', verified: true };
+        users.push(user);
+        writeJson(FILES.users, users);
+      }
+    }
+    
+    req.session.userId = user._id?.toString() || user.id;
+    req.session.role = user.role || 'user';
+    
+    const safeUser = { id: user._id?.toString() || user.id, name: user.name, email: user.email, role: user.role || 'user', avatar: user.avatar || picture };
+    res.json({ success: true, user: safeUser });
+  } catch (e) { 
+    console.error('Google Auth Error:', e.message);
+    res.status(500).json({ error: 'Google login failed: ' + e.message }); 
+  }
+});
+
 // ─── SETTINGS API (before page wildcards!) ────────────────────
 app.get('/api/settings', async (req, res) => {
   try {

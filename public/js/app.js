@@ -138,9 +138,13 @@ async function handleSignup() {
   const name = document.getElementById('signup-name').value;
   const email = document.getElementById('signup-email').value;
   const password = document.getElementById('signup-password').value;
-  const phone = document.getElementById('signup-phone').value;
+  const confirmPassword = document.getElementById('signup-confirm-password')?.value;
+  const phone = document.getElementById('signup-phone')?.value || '';
   const err = document.getElementById('signup-error');
-  if(!name || !email || !password) { err.textContent = 'Please fill all required fields'; return; }
+  
+  if(!name || !email || !password) { err.textContent = 'Please fill name, email and password'; return; }
+  if(password.length < 6) { err.textContent = 'Password must be at least 6 characters'; return; }
+  if(confirmPassword !== undefined && password !== confirmPassword) { err.textContent = 'Passwords do not match'; return; }
 
   window.pendingAuth = { type: 'signup', name, email, password, phone };
   sendEmailOTP(email, 'auth-signup-form', 'signup-error');
@@ -419,6 +423,7 @@ async function renderHome() {
       <div class="hero-badge" style="background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.2); color:#fff; margin-bottom:1rem;">✦ LIMITED EDITION 2026 ✦</div>
       <h2 style="font-family:'Playfair Display',serif; font-size:2.8rem; margin-bottom:1rem; line-height:1.2;">Exclusive Seasonal Drop<br/><span style="color:var(--gold-light);">Sale Ends In</span></h2>
       <div class="promo-timer" id="promo-timer">
+        <div class="timer-box"><span class="timer-val" id="t-days">00</span><span class="timer-label">Days</span></div>
         <div class="timer-box"><span class="timer-val" id="t-hours">00</span><span class="timer-label">Hours</span></div>
         <div class="timer-box"><span class="timer-val" id="t-mins">00</span><span class="timer-label">Mins</span></div>
         <div class="timer-box"><span class="timer-val" id="t-secs">00</span><span class="timer-label">Secs</span></div>
@@ -660,7 +665,6 @@ async function startOfferTimer() {
   const timerEl = document.getElementById('promo-timer');
   if (!timerEl) return;
   
-  // Wait for settings to load if needed, or fetch directly
   const s = await api('/api/settings');
   const end = s.saleEndDate ? new Date(s.saleEndDate) : new Date(Date.now() + 86400000);
 
@@ -668,21 +672,21 @@ async function startOfferTimer() {
     const now = new Date();
     const diff = end - now;
     if (diff <= 0) {
-      document.getElementById('t-hours').textContent = '00';
-      document.getElementById('t-mins').textContent = '00';
-      document.getElementById('t-secs').textContent = '00';
+      ['t-days','t-hours','t-mins','t-secs'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '00'; });
       return;
     }
-    const hours = Math.floor(diff / (1000 * 60 * 60)),
-          minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    const days    = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours   = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
           
-    document.getElementById('t-hours').textContent = String(hours).padStart(2, '0');
-    document.getElementById('t-mins').textContent = String(minutes).padStart(2, '0');
-    document.getElementById('t-secs').textContent = String(seconds).padStart(2, '0');
+    const d = document.getElementById('t-days');   if(d) d.textContent = String(days).padStart(2,'0');
+    const h = document.getElementById('t-hours');  if(h) h.textContent = String(hours).padStart(2,'0');
+    const m = document.getElementById('t-mins');   if(m) m.textContent = String(minutes).padStart(2,'0');
+    const sec = document.getElementById('t-secs'); if(sec) sec.textContent = String(seconds).padStart(2,'0');
   }
   updateTimer(); 
-  const timerInt = setInterval(updateTimer, 1000);
+  setInterval(updateTimer, 1000);
 }
 
 function createParticles() {
@@ -798,3 +802,63 @@ window.onload = async () => {
     }, 1000);
   }
 };
+
+// ── GOOGLE OAUTH ─────────────────────────────────────────────
+const GOOGLE_CLIENT_ID = '1074667694021-1b9v8blpaq6l6ik0na3fq6c8prg9hm3q.apps.googleusercontent.com';
+
+function signInWithGoogle() {
+  // Load Google Identity Services if not loaded
+  if (!window.google) {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.onload = () => initGoogleSignIn();
+    document.head.appendChild(script);
+  } else {
+    initGoogleSignIn();
+  }
+}
+
+function initGoogleSignIn() {
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    cancel_on_tap_outside: true
+  });
+  google.accounts.id.prompt((notification) => {
+    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+      // Fallback to popup
+      google.accounts.id.renderButton(
+        document.body,
+        { theme: 'outline', size: 'large' }
+      );
+    }
+  });
+}
+
+async function handleGoogleCredential(response) {
+  const btn = document.getElementById('login-btn') || document.getElementById('signup-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in with Google...'; }
+  
+  const result = await api('/api/auth/google', {
+    method: 'POST',
+    body: { credential: response.credential }
+  });
+  
+  if (btn) { btn.disabled = false; }
+  
+  if (result.error) {
+    toast(result.error, 'error');
+    const loginBtn = document.getElementById('login-btn');
+    const signupBtn = document.getElementById('signup-btn');
+    if (loginBtn) loginBtn.textContent = 'Sign In';
+    if (signupBtn) signupBtn.textContent = 'Create Account ✦';
+    return;
+  }
+  
+  currentUser = result.user;
+  closeAuthModal();
+  await updateCartCount();
+  toast(`Welcome, ${result.user.name}! ✦`, 'success');
+  navigate(location.pathname, false);
+}
