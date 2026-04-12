@@ -1424,29 +1424,23 @@ app.get('/api/ai/trending', async (req, res) => {
 // ─── GOOGLE OAUTH ROUTE ──────────────────────────────────────
 app.post('/api/auth/google', async (req, res) => {
   try {
-    const { credential } = req.body;
-    if (!credential) return res.status(400).json({ error: 'No credential provided' });
-    
-    // Decode JWT payload (middle part) – no external library needed
-    const parts = credential.split('.');
-    if (parts.length !== 3) return res.status(400).json({ error: 'Invalid credential format' });
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-    
-    const { email, name, picture, sub: googleId } = payload;
-    if (!email) return res.status(400).json({ error: 'Could not get email from Google' });
+    const { email, name, picture, googleId } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required from Google' });
     
     let user;
     if (useDB) {
       user = await User.findOne({ email }).lean();
       if (!user) {
-        // Create new user with Google account
+        // New user — create account automatically
         const newUser = new User({ 
-          name, email, 
-          password: 'GOOGLE_AUTH_' + googleId, 
+          name: name || email.split('@')[0], 
+          email, 
+          password: 'GOOGLE_' + (googleId || Date.now()),
           googleId,
           avatar: picture,
           role: 'user',
-          verified: true
+          verified: true,
+          phone: ''
         });
         await newUser.save();
         user = newUser.toObject();
@@ -1455,7 +1449,13 @@ app.post('/api/auth/google', async (req, res) => {
       const users = readJson(FILES.users);
       user = users.find(u => u.email === email);
       if (!user) {
-        user = { id: Date.now().toString(), name, email, googleId, role: 'user', verified: true };
+        user = { 
+          id: Date.now().toString(), 
+          name: name || email.split('@')[0], 
+          email, googleId, 
+          role: 'user', 
+          verified: true 
+        };
         users.push(user);
         writeJson(FILES.users, users);
       }
@@ -1464,8 +1464,16 @@ app.post('/api/auth/google', async (req, res) => {
     req.session.userId = user._id?.toString() || user.id;
     req.session.role = user.role || 'user';
     
-    const safeUser = { id: user._id?.toString() || user.id, name: user.name, email: user.email, role: user.role || 'user', avatar: user.avatar || picture };
-    res.json({ success: true, user: safeUser });
+    res.json({ 
+      success: true, 
+      user: { 
+        id: user._id?.toString() || user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role || 'user', 
+        avatar: user.avatar || picture 
+      } 
+    });
   } catch (e) { 
     console.error('Google Auth Error:', e.message);
     res.status(500).json({ error: 'Google login failed: ' + e.message }); 

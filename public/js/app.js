@@ -807,58 +807,79 @@ window.onload = async () => {
 const GOOGLE_CLIENT_ID = '1074667694021-1b9v8blpaq6l6ik0na3fq6c8prg9hm3q.apps.googleusercontent.com';
 
 function signInWithGoogle() {
-  // Load Google Identity Services if not loaded
-  if (!window.google) {
+  // Show loading state on whichever button triggered this
+  const activeBtn = document.activeElement;
+  if (activeBtn) { activeBtn.disabled = true; activeBtn.textContent = '⏳ Connecting to Google...'; }
+  
+  // Load Google Identity Services library on first use
+  if (!window.google || !window.google.accounts) {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
-    script.onload = () => initGoogleSignIn();
+    script.onload = () => openGooglePopup();
+    script.onerror = () => { toast('Could not load Google SDK. Check connection.', 'error'); };
     document.head.appendChild(script);
   } else {
-    initGoogleSignIn();
+    openGooglePopup();
   }
 }
 
-function initGoogleSignIn() {
-  google.accounts.id.initialize({
+function openGooglePopup() {
+  // Use OAuth2 Token Client — opens a proper popup like account chooser
+  const client = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleCredential,
-    auto_select: false,
-    cancel_on_tap_outside: true
-  });
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      // Fallback to popup
-      google.accounts.id.renderButton(
-        document.body,
-        { theme: 'outline', size: 'large' }
-      );
+    scope: 'openid email profile',
+    callback: async (tokenResponse) => {
+      if (tokenResponse.error) {
+        toast('Google sign-in was cancelled', 'error');
+        resetGoogleBtns();
+        return;
+      }
+      // Fetch user profile using access token
+      try {
+        const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+        });
+        const profile = await userInfoResp.json();
+        await completeGoogleLogin(profile);
+      } catch(e) {
+        toast('Failed to get Google profile info', 'error');
+        resetGoogleBtns();
+      }
+    },
+    error_callback: (err) => {
+      toast('Google sign-in failed: ' + (err.message || err.type || 'Unknown error'), 'error');
+      resetGoogleBtns();
     }
   });
+  
+  client.requestAccessToken({ prompt: 'select_account' });
 }
 
-async function handleGoogleCredential(response) {
-  const btn = document.getElementById('login-btn') || document.getElementById('signup-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Signing in with Google...'; }
+function resetGoogleBtns() {
+  const loginBtn = document.getElementById('login-btn');
+  const signupBtn = document.getElementById('signup-btn');
+  if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Sign In'; }
+  if (signupBtn) { signupBtn.disabled = false; signupBtn.textContent = 'Create Account ✦'; }
+}
+
+async function completeGoogleLogin(profile) {
+  const { email, name, picture, sub: googleId } = profile;
+  if (!email) { toast('Could not get email from Google', 'error'); resetGoogleBtns(); return; }
   
   const result = await api('/api/auth/google', {
     method: 'POST',
-    body: { credential: response.credential }
+    body: { email, name, picture, googleId }
   });
-  
-  if (btn) { btn.disabled = false; }
   
   if (result.error) {
     toast(result.error, 'error');
-    const loginBtn = document.getElementById('login-btn');
-    const signupBtn = document.getElementById('signup-btn');
-    if (loginBtn) loginBtn.textContent = 'Sign In';
-    if (signupBtn) signupBtn.textContent = 'Create Account ✦';
+    resetGoogleBtns();
     return;
   }
   
   currentUser = result.user;
   closeAuthModal();
   await updateCartCount();
-  toast(`Welcome, ${result.user.name}! ✦`, 'success');
+  toast(`🎉 Welcome, ${result.user.name}! ✦`, 'success');
   navigate(location.pathname, false);
 }
