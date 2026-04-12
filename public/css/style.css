@@ -906,14 +906,51 @@ tr:hover td{background:var(--beige)}
   border: none !important;
 }
 
-/* ── TESTIMONIALS HEADING FIX ── */
+/* ── TESTIMONIALS HEADING FIX — white on dark background ── */
+.section-title {
+  color: #fff !important;
+}
 .testi-section .section-title,
 .testimonials-title {
-  color: var(--dark) !important;
+  color: #fff !important;
   background: transparent !important;
   border: none !important;
   -webkit-text-stroke: 0 !important;
 }
+
+/* ── MODAL CLOSE BUTTON — always visible ── */
+.modal-close {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: rgba(0,0,0,0.08) !important;
+  color: #333 !important;
+  font-size: 1.4rem !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10 !important;
+  line-height: 1 !important;
+  transition: background .2s !important;
+}
+.modal-close:hover { background: rgba(0,0,0,0.15) !important; }
+
+/* ── CAPTCHA / HACKER SHIELD LABEL CLEAN UP ── */
+.captcha-label, label[for="captcha"], .hacker-shield-label {
+  background: transparent !important;
+  border: none !important;
+  color: var(--gray) !important;
+  font-size: .75rem !important;
+  letter-spacing: .1em !important;
+  text-transform: uppercase !important;
+  padding: 0 !important;
+}
+
 
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media(max-width:1024px){

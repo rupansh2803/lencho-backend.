@@ -638,3 +638,138 @@ function toggleSpec(header) {
   body.style.display = isOpen ? 'none' : 'block';
   icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
+
+// ── LEGAL PAGE SHARED STYLE ──────────────────────────────────
+function legalPageHTML(title, eyebrow, content) {
+  return `
+  <div style="min-height:70vh; padding:8rem 5% 5rem; max-width:860px; margin:0 auto;">
+    <div style="text-align:center; margin-bottom:3rem;">
+      <div style="display:inline-block; background:linear-gradient(135deg,var(--rose),var(--dark-rose)); color:#fff; padding:6px 22px; border-radius:99px; font-size:.78rem; letter-spacing:.2em; font-weight:700; margin-bottom:1rem; text-transform:uppercase;">${eyebrow}</div>
+      <h1 style="font-family:'Playfair Display',serif; font-size:clamp(2rem,5vw,3rem); color:var(--dark); margin-bottom:0;">${title}</h1>
+      <div style="width:60px; height:3px; background:linear-gradient(90deg,var(--rose),var(--gold)); margin:1rem auto 0; border-radius:99px;"></div>
+    </div>
+    <div style="background:#fff; border-radius:24px; padding:2.5rem 3rem; box-shadow:0 8px 40px rgba(0,0,0,.07); line-height:1.9; color:#444; font-size:1rem;">
+      ${content}
+    </div>
+    <div style="text-align:center; margin-top:2.5rem;">
+      <button class="btn-primary" onclick="navigate('/')" style="padding:14px 36px;">← Back to Home</button>
+    </div>
+  </div>`;
+}
+
+// ── TERMS & CONDITIONS ────────────────────────────────────────
+function renderTerms() {
+  const app = document.getElementById('app');
+  app.innerHTML = legalPageHTML('Terms & Conditions', 'Legal', `
+    <p style="color:#888; font-size:.88rem; margin-bottom:1.5rem;">Last Updated: April 2026</p>
+    <p>Welcome to <strong>Lencho</strong> — India's premium artificial jewellery brand. By accessing or using our website (<a href="/" style="color:var(--rose);">lencho.in</a>), you agree to the following terms and conditions. Please read them carefully.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">1. Use of Website</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>You must be at least 18 years old to place orders, or have parental consent.</li>
+      <li>You agree to provide accurate, current, and complete information when placing orders.</li>
+      <li>You must not misuse our website, attempt to hack, overload, or damage our systems.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">2. Orders & Payments</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>All prices on Lencho are listed in Indian Rupees (₹) and include applicable taxes.</li>
+      <li>We reserve the right to cancel or refuse any order at our discretion, including fraudulent or fake orders.</li>
+      <li>Prices and product availability are subject to change without prior notice.</li>
+      <li>Payments must be made through approved methods listed on our checkout page.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">3. Returns & Refunds</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>We offer a 7-day easy return policy on all delivered products.</li>
+      <li>Products must be returned in their original condition with original packaging.</li>
+      <li>Refunds will be processed within 5–7 business days of receiving the return.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">4. Intellectual Property</h3>
+    <p>All content on this website — including images, logos, text, designs — is the exclusive property of Lencho. Reproduction or redistribution without written permission is prohibited.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">5. Governing Law</h3>
+    <p>These terms are governed by the laws of India. Any disputes will be subject to the exclusive jurisdiction of courts in India.</p>
+
+    <p style="margin-top:2rem; padding:1rem; background:#fdf5f7; border-radius:12px; border-left:4px solid var(--rose); font-size:.9rem;">By using our website, you agree to follow these terms and conditions. If you do not agree, please discontinue use of the website.</p>
+  `);
+  window.scrollTo(0,0);
+}
+
+// ── PRIVACY POLICY ────────────────────────────────────────────
+function renderPrivacy() {
+  const app = document.getElementById('app');
+  app.innerHTML = legalPageHTML('Privacy Policy', 'Your Privacy', `
+    <p style="color:#888; font-size:.88rem; margin-bottom:1.5rem;">Last Updated: April 2026</p>
+    <p>At <strong>Lencho</strong>, we deeply respect your privacy. This policy explains how we collect, use, and protect your personal information when you shop with us.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">1. Information We Collect</h3>
+    <ul style="padding-left:1.5rem;">
+      <li><strong>Personal Details:</strong> Name, email address, phone number, and delivery address when you create an account or place an order.</li>
+      <li><strong>Payment Info:</strong> We do not store card details. Payments are processed securely through trusted payment gateways.</li>
+      <li><strong>Usage Data:</strong> We may collect browsing data (pages visited, time spent) to improve your shopping experience.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">2. How We Use Your Information</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>To process and deliver your orders.</li>
+      <li>To send order confirmations, shipping updates, and OTP verifications via email.</li>
+      <li>To personalise your shopping experience on Lencho.</li>
+      <li>To respond to your queries and customer support requests.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">3. Data Security</h3>
+    <p>We implement industry-standard security measures to protect your personal data. Your password is encrypted and we never store it in plain text.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">4. Data Sharing</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>We do <strong>not</strong> sell your personal data to third parties.</li>
+      <li>Data may be shared only with trusted delivery partners to fulfil your orders.</li>
+      <li>We may disclose information if required by law or government authority.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">5. Cookies</h3>
+    <p>We use cookies to maintain your session and improve site performance. You can disable cookies in your browser settings, but this may affect some website features.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">6. Your Rights</h3>
+    <p>You may request deletion of your account and personal data by contacting us at <a href="mailto:lencho.official01@gmail.com" style="color:var(--rose);">lencho.official01@gmail.com</a>.</p>
+
+    <p style="margin-top:2rem; padding:1rem; background:#fdf5f7; border-radius:12px; border-left:4px solid var(--rose); font-size:.9rem;">By using our website, you consent to the practices described in this Privacy Policy.</p>
+  `);
+  window.scrollTo(0,0);
+}
+
+// ── DISCLAIMER ────────────────────────────────────────────────
+function renderDisclaimer() {
+  const app = document.getElementById('app');
+  app.innerHTML = legalPageHTML('Disclaimer', 'Important Notice', `
+    <p style="color:#888; font-size:.88rem; margin-bottom:1.5rem;">Last Updated: April 2026</p>
+    <p>The information provided on the <strong>Lencho</strong> website is for general informational and shopping purposes only. Please read this disclaimer carefully.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">1. Product Accuracy</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>We strive to ensure all product information, descriptions, and pricing are accurate. However, errors may occasionally occur.</li>
+      <li>Product colours may appear slightly different on your screen due to monitor settings and photography lighting.</li>
+      <li>Product images are for representation purposes only and actual product may have minor visual differences.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">2. No Warranty</h3>
+    <p>Lencho provides artificial jewellery products "as is" without any warranty of specific durability or fitness for a particular purpose beyond what is described on the product page.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">3. Limitation of Liability</h3>
+    <ul style="padding-left:1.5rem;">
+      <li>Lencho is not responsible for any direct, indirect, or incidental damages arising from use of our website.</li>
+      <li>We are not liable for delays caused by courier partners, natural events, or circumstances beyond our control.</li>
+    </ul>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">4. External Links</h3>
+    <p>Our website may contain links to third-party websites. Lencho is not responsible for the content or privacy practices of those external sites.</p>
+
+    <h3 style="color:var(--dark); margin-top:2rem; font-family:'Playfair Display',serif;">5. Changes to This Disclaimer</h3>
+    <p>We reserve the right to update this disclaimer at any time. Changes will be reflected on this page with a revised date.</p>
+
+    <p style="margin-top:2rem; padding:1rem; background:#fdf5f7; border-radius:12px; border-left:4px solid var(--rose); font-size:.9rem;">By continuing to use this website, you accept this disclaimer in full. For any queries, contact us at <a href="mailto:lencho.official01@gmail.com" style="color:var(--rose);">lencho.official01@gmail.com</a>.</p>
+  `);
+  window.scrollTo(0,0);
+}

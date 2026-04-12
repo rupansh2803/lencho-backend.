@@ -25,6 +25,9 @@ async function navigate(path, pushState = true) {
     else if (route === '/contact') { renderContact(); }
     else if (route === '/dashboard') { app.style.paddingTop = '0'; renderDashboard(); }
     else if (route === '/wishlist') { renderWishlist(); }
+    else if (route === '/terms') { renderTerms(); }
+    else if (route === '/privacy') { renderPrivacy(); }
+    else if (route === '/disclaimer') { renderDisclaimer(); }
     else if (route === '/admin') {
       footer.style.display = 'none';
       header.style.display = 'none';
@@ -830,7 +833,10 @@ function openGooglePopup() {
     scope: 'openid email profile',
     callback: async (tokenResponse) => {
       if (tokenResponse.error) {
-        toast('Google sign-in was cancelled', 'error');
+        // Only show toast for real errors, not just closing the popup
+        if (tokenResponse.error !== 'popup_closed_by_user' && tokenResponse.error !== 'popup_closed') {
+          toast('Google sign-in failed', 'error');
+        }
         resetGoogleBtns();
         return;
       }
@@ -847,7 +853,11 @@ function openGooglePopup() {
       }
     },
     error_callback: (err) => {
-      toast('Google sign-in failed: ' + (err.message || err.type || 'Unknown error'), 'error');
+      // 'popup_closed_by_user' = user just closed window, not a real error
+      const errType = err?.type || err?.message || '';
+      if (!errType.includes('popup_closed') && !errType.includes('access_denied')) {
+        toast('Google sign-in failed: ' + errType, 'error');
+      }
       resetGoogleBtns();
     }
   });
