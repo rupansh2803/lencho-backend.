@@ -413,6 +413,35 @@ ul{list-style:none}
 .nav-close { position: absolute; top: 20px; right: 20px; font-size: 1.5rem; color: var(--dark); border: none; background: none; cursor: pointer; display: none; }
 @media (max-width: 768px) { .nav-close { display: block; } }
 
+/* ── MOBILE NAV DROPDOWN ── */
+@media (max-width: 768px) {
+  .nav-dropdown { position: relative; width: 100%; }
+  .nav-dropdown-menu {
+    display: none;
+    flex-direction: column;
+    background: #fff8fa;
+    border-radius: 12px;
+    padding: .5rem 0;
+    margin: .25rem 0 .5rem 1rem;
+    border-left: 3px solid var(--rose-light);
+    gap: 0;
+  }
+  .nav-dropdown-menu a {
+    padding: .6rem 1rem;
+    font-size: .875rem;
+    color: var(--dark);
+    display: block;
+    transition: color .2s;
+  }
+  .nav-dropdown-menu a:hover { color: var(--rose); }
+  /* When .mob-open is toggled via JS */
+  .nav-dropdown.mob-open .nav-dropdown-menu {
+    display: flex !important;
+    animation: popIn .2s ease;
+  }
+}
+
+
 /* ── HERO PREMIUM ────────────────────────────────────────── */
 .hero-premium {
   position: relative;

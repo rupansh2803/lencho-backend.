@@ -222,8 +222,8 @@
       <nav class="main-nav" id="main-nav">
         <button class="nav-close" id="nav-close-btn"><i class="fas fa-times"></i></button>
         <a href="/" class="nav-link" onclick="navigate('/')">Home</a>
-        <div class="nav-dropdown">
-          <span class="nav-link" style="cursor:pointer;" onclick="navigate('/products')">Collections <i class="fas fa-chevron-down" style="font-size:.65rem;"></i></span>
+        <div class="nav-dropdown" id="nav-collections-dd">
+          <span class="nav-link" style="cursor:pointer;" onclick="toggleNavDropdown(event)" data-href="/products">Collections <i class="fas fa-chevron-down" style="font-size:.65rem;transition:transform .2s;" id="coll-arrow"></i></span>
           <div class="nav-dropdown-menu">
             <a href="/products" onclick="event.preventDefault(); navigate('/products')">✦ All Collections</a>
             <a href="/products?category=earrings" onclick="event.preventDefault(); navigate('/products?category=earrings')">💍 Earrings</a>

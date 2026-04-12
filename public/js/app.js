@@ -307,6 +307,32 @@ function initHeader() {
   });
 }
 
+// ── MOBILE NAV DROPDOWN TOGGLE ────────────────────────────
+function toggleNavDropdown(e) {
+  e.stopPropagation();
+  const isMobile = window.innerWidth <= 768;
+  const dd = document.getElementById('nav-collections-dd');
+  const arrow = document.getElementById('coll-arrow');
+  if (isMobile) {
+    // On mobile: toggle open/close
+    const isOpen = dd.classList.contains('mob-open');
+    dd.classList.toggle('mob-open', !isOpen);
+    if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+  } else {
+    // On desktop: navigate directly
+    navigate('/products');
+  }
+}
+// Close mobile dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('nav-collections-dd');
+  if (dd && !dd.contains(e.target)) {
+    dd.classList.remove('mob-open');
+    const arrow = document.getElementById('coll-arrow');
+    if (arrow) arrow.style.transform = '';
+  }
+});
+
 // ── SCROLL REVEAL ─────────────────────────────────────────
 function initScrollReveal() {
   const obs = new IntersectionObserver((entries) => {
@@ -890,8 +916,15 @@ async function completeGoogleLogin(profile) {
   }
   
   currentUser = result.user;
+  updateHeader();
   closeAuthModal();
   await updateCartCount();
   toast(`🎉 Welcome, ${result.user.name}! ✦`, 'success');
-  navigate(location.pathname, false);
+  
+  // Redirect: admin → admin panel, user → dashboard
+  if (currentUser.role === 'admin') {
+    navigate('/admin');
+  } else {
+    navigate('/dashboard');
+  }
 }
