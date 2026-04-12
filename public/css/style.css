@@ -1392,3 +1392,128 @@ tr:hover td{background:var(--beige)}
   .contact-layout { padding:2rem 1.5rem; }
 }
 
+/* ── ADMIN PANEL MOBILE RESPONSIVE ─────────────────────────── */
+/* Desktop layout */
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f4f4f7;
+}
+.admin-sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: #fff;
+  box-shadow: 2px 0 12px rgba(0,0,0,.06);
+  display: flex;
+  flex-direction: column;
+  z-index: 500;
+  transition: transform .3s ease;
+}
+.admin-main {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+.admin-mob-toggle {
+  display: none;
+}
+
+/* ── MOBILE ADMIN FIXES ── */
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* Hamburger button — always visible top-left */
+  .admin-mob-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1001;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: none;
+    background: var(--rose, #c96a8a);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,.2);
+  }
+
+  /* Sidebar — hidden off-screen by default */
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 80vw;
+    max-width: 280px;
+    transform: translateX(-100%);
+    z-index: 1000;
+    overflow-y: auto;
+    box-shadow: 4px 0 24px rgba(0,0,0,.2);
+  }
+
+  /* When .open class is added — slide in */
+  .admin-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Backdrop overlay when sidebar is open */
+  .admin-sidebar.open::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: -1;
+    left: 80vw;
+    width: 100vw;
+  }
+
+  /* Main content takes full width */
+  .admin-main {
+    width: 100%;
+    padding-top: 60px; /* space for hamburger button */
+  }
+
+  /* Dashboard stats — single column on mobile */
+  .admin-stats-grid,
+  [style*="grid-template-columns: repeat(4"],
+  [style*="grid-template-columns:repeat(4"],
+  [style*="grid-template-columns: repeat(3"],
+  [style*="grid-template-columns:repeat(3"],
+  [style*="grid-template-columns: 1fr 1fr 1fr"],
+  [style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Recent orders + revenue side-by-side → stack */
+  [style*="display:grid"][style*="1fr 1fr"],
+  [style*="display: grid"][style*="1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Admin content padding */
+  #admin-content {
+    padding: 1rem !important;
+  }
+
+  /* Tables — horizontal scroll */
+  .admin-table-container, table {
+    overflow-x: auto;
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Admin logo area spacing */
+  .admin-logo {
+    padding: 24px 16px 16px !important;
+  }
+}
+
+
