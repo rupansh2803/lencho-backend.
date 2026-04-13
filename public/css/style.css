@@ -3491,12 +3491,9 @@ tr:hover td {
 }
 
 /* ── TESTIMONIALS HEADING FIX — white on dark background ── */
-.section-title {
-  color: #fff !important;
-}
-
 .testi-section .section-title,
-.testimonials-title {
+.testimonials-title,
+.video-section .section-title {
   color: #fff !important;
   background: transparent !important;
   border: none !important;
@@ -3506,8 +3503,8 @@ tr:hover td {
 /* ── MODAL CLOSE BUTTON — clearly visible ── */
 .modal-close {
   position: absolute !important;
-  top: 50px !important;
-  right: 14px !important;
+  top: 18px !important;
+  right: 18px !important;
   width: 38px !important;
   height: 38px !important;
   border-radius: 50% !important;
