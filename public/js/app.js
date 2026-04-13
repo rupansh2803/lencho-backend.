@@ -474,27 +474,9 @@ async function renderHome() {
       <h2 class="section-title">Exclusive Collections</h2>
       <div class="divider"></div>
     </div>
-    <div class="categories-grid">
-      <div class="cat-card reveal-left" onclick="navigate('/products?category=earrings')">
-        <img class="cat-img" src="/images/earrings.png" alt="Earrings" onerror="this.src='/images/hero.png'"/>
-        <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">💍 Earrings</div><button class="cat-btn">Shop Now</button></div>
-      </div>
-      <div class="cat-card reveal" onclick="navigate('/products?category=necklace')">
-        <img class="cat-img" src="/images/necklace.png" alt="Necklace" onerror="this.src='/images/hero.png'"/>
-        <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">📿 Necklace</div><button class="cat-btn">Shop Now</button></div>
-      </div>
-      <div class="cat-card reveal-right" onclick="navigate('/products?category=toe-rings')">
-        <img class="cat-img" src="/images/toe-rings.png" alt="Toe Rings" onerror="this.src='/images/hero.png'"/>
-        <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">🦶 Toe Rings</div><button class="cat-btn">Shop Now</button></div>
-      </div>
-      <div class="cat-card reveal-right" onclick="navigate('/products?category=payal')">
-        <img class="cat-img" src="/images/payal.png" alt="Payal" onerror="this.src='/images/hero.png'"/>
-        <div class="cat-overlay"></div>
-        <div class="cat-content"><div class="cat-name">🔔 Payal</div><button class="cat-btn">Shop Now</button></div>
-      </div>
+    <div class="categories-grid" id="home-categories-grid">
+      <!-- Loaded dynamically via loadHomeCategories() -->
+      <div style="grid-column:1/-1;text-align:center;color:var(--gray);">Loading exclusive collections...</div>
     </div>
   </section>
 
@@ -522,6 +504,7 @@ async function renderHome() {
   </section>`;
 
   createParticles();
+  loadHomeCategories();
   loadFeaturedProducts();
   loadTestimonials();
   startOfferTimer();

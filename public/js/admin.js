@@ -184,6 +184,7 @@ function adminTab(tab) {
   if (tab === 'dashboard') adminDashboard();
   if (tab === 'orders') adminOrders();
   if (tab === 'products') adminProducts();
+  if (tab === 'add-product') adminAddProduct();
   if (tab === 'collections') adminCollections();
   if (tab === 'inquiries') adminInquiries();
   if (tab === 'users') adminUsers();
