@@ -132,6 +132,26 @@ const FILES = {
 const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; } };
 const writeJson = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
+function getJsonCatalogProducts() {
+  return readJson(FILES.products).filter(product => product && product.id && product.name);
+}
+
+function getJsonCategoriesFromProducts(products) {
+  const seen = new Set();
+  const categories = [];
+  for (const product of products) {
+    if (!product || !product.category || seen.has(product.category)) continue;
+    seen.add(product.category);
+    categories.push({
+      name: product.category.replace(/-/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
+      slug: product.category,
+      image: product.images?.[0] || '/images/hero.png',
+      description: ''
+    });
+  }
+  return categories;
+}
+
 function initFallback() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
   Object.values(FILES).forEach(f => { if (!fs.existsSync(f)) writeJson(f, []); });
@@ -875,9 +895,18 @@ app.get('/api/categories', async (req, res) => {
   try {
     if (useDB) {
       const cats = await Category.find().sort('displayOrder');
-      return res.json(cats);
+      if (cats && cats.length > 0) return res.json(cats);
+
+      const products = await Product.find({}).lean();
+      const fallbackProducts = products.length > 0 ? products.map(p => ({
+        id: p._id?.toString() || p.id,
+        name: p.name,
+        category: p.category,
+        images: p.images || []
+      })) : getJsonCatalogProducts();
+      return res.json(getJsonCategoriesFromProducts(fallbackProducts));
     }
-    res.json([]); // JSON fallback categories
+    return res.json(getJsonCategoriesFromProducts(getJsonCatalogProducts()));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -918,7 +947,16 @@ app.get('/api/products', async (req, res) => {
       else if (sort === 'price-desc') q = q.sort({ price: -1 });
       else if (sort === 'rating') q = q.sort({ rating: -1 });
       const products = await q.lean();
-      return res.json(products.map(p => ({ ...p, id: p._id })));
+      if (products.length > 0) return res.json(products.map(p => ({ ...p, id: p._id })));
+
+      let fallbackProducts = getJsonCatalogProducts();
+      if (category) fallbackProducts = fallbackProducts.filter(p => p.category === category);
+      if (featured === 'true') fallbackProducts = fallbackProducts.filter(p => p.featured);
+      if (search) fallbackProducts = fallbackProducts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+      if (sort === 'price-asc') fallbackProducts.sort((a, b) => a.price - b.price);
+      if (sort === 'price-desc') fallbackProducts.sort((a, b) => b.price - a.price);
+      if (sort === 'rating') fallbackProducts.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      return res.json(fallbackProducts);
     }
     let products = readJson(FILES.products);
     if (category) products = products.filter(p => p.category === category);
