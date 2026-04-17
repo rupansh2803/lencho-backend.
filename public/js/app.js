@@ -643,18 +643,25 @@ async function renderHome() {
   </section>` : ''}`;
 
   createParticles();
-  if (isOn('showCollections')) loadHomeCategories();
-  if (isOn('showFeaturedProducts')) loadFeaturedProducts();
-  if (isOn('showTestimonials')) loadTestimonials();
-  if (isOn('showPromo')) startOfferTimer();
   initScrollReveal();
-  setTimeout(() => {
-    if (!sessionStorage.getItem('popupShown')) {
-      document.getElementById('discount-popup').style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    }
-  }, 5000);
+  
+  // Load content sections in parallel (non-blocking)
+  if (isOn('showCollections')) loadHomeCategories().catch(e => console.log('Cat load error:', e));
+  if (isOn('showFeaturedProducts')) loadFeaturedProducts().catch(e => console.log('Product load error:', e));
+  if (isOn('showTestimonials')) loadTestimonials().catch(e => console.log('Testi load error:', e));
+  if (isOn('showPromo')) startOfferTimer();
+  
+  // Show discount popup after delay (non-blocking, detached from page load)
+  if (!sessionStorage.getItem('popupShown')) {
+    setTimeout(() => {
+      const popup = document.getElementById('discount-popup');
+      if (popup) {
+        popup.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+      }
+    }, 5000);
+  }
 }
 
 // ── DATA LOADERS ──────────────────────────────────────────
@@ -997,19 +1004,32 @@ async function syncSocialLinks() {
 // ── INIT ──────────────────────────────────────────────────
 window.onload = async () => {
   try {
-    await loadUser();
-    await updateCartCount();
-    await syncSocialLinks();
-    await loadPublicSettings();
+    // ✨ PARALLEL INITIALIZATION: Run non-blocking tasks together
+    const initPromises = [];
+    
+    // Critical path: Load user + init header (fast)
+    initPromises.push(loadUser().catch(e => console.error('loadUser error:', e)));
+    
+    // Non-critical async tasks (run in background, don't block rendering)
+    initPromises.push(updateCartCount().catch(e => console.error('updateCartCount error:', e)));
+    initPromises.push(syncSocialLinks().catch(e => console.error('syncSocialLinks error:', e)));
+    initPromises.push(loadPublicSettings().catch(e => console.error('loadPublicSettings error:', e)));
+    
+    // Render page IMMEDIATELY (don't wait for all promises)
+    navigate(location.pathname + location.search, false);
     if (typeof initHeader === 'function') initHeader();
+    
+    // Hide loading screen fast (after minimal delay)
+    const ls = document.getElementById('loading-screen');
+    setTimeout(() => {
+      if (ls) ls.classList.add('hidden');
+    }, 300); // Reduced from 1000ms
+    
+    // Wait for background tasks to complete (non-blocking)
+    await Promise.allSettled(initPromises);
   } catch (e) {
     console.error('Init Error:', e);
-  } finally {
     navigate(location.pathname + location.search, false);
-    setTimeout(() => {
-      const ls = document.getElementById('loading-screen');
-      if (ls) ls.classList.add('hidden');
-    }, 1000);
   }
 };
 
@@ -1028,7 +1048,11 @@ function signInWithGoogle(event) {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.onload = () => doGoogleSignIn(btn);
-    script.onerror = () => { toast('Could not load Google. Check connection.', 'error'); resetBtn(btn); };
+    script.onerror = () => {
+      toast('Could not load Google SDK. Check internet/adblock.', 'error');
+      console.error('Google SDK failed to load from https://accounts.google.com/gsi/client');
+      resetBtn(btn);
+    };
     document.head.appendChild(script);
   } else {
     doGoogleSignIn(btn);
@@ -1037,11 +1061,19 @@ function signInWithGoogle(event) {
 
 function doGoogleSignIn(btn) {
   try {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_ID.includes('.apps.googleusercontent.com')) {
+      toast('Google Client ID missing/invalid', 'error');
+      console.error('Invalid GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+      resetBtn(btn);
+      return;
+    }
+
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: 'openid email profile',
       callback: async (tokenResponse) => {
         if (tokenResponse.error) {
+          console.error('Google token callback error:', tokenResponse);
           if (tokenResponse.error !== 'popup_closed_by_user') {
             toast('Google: ' + (tokenResponse.error_description || tokenResponse.error), 'error');
           }
@@ -1052,15 +1084,24 @@ function doGoogleSignIn(btn) {
           const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
           });
+          if (!resp.ok) {
+            const failText = await resp.text();
+            console.error('Google userinfo failed:', resp.status, failText);
+            toast(`Google profile fetch failed (${resp.status})`, 'error');
+            resetBtn(btn);
+            return;
+          }
           const profile = await resp.json();
           await completeGoogleLogin(profile, btn);
         } catch(e) {
+          console.error('Google profile request error:', e);
           toast('Failed to get Google profile', 'error');
           resetBtn(btn);
         }
       },
       error_callback: (err) => {
         const t = err?.type || '';
+        console.error('Google OAuth error callback:', err, 'origin:', window.location.origin);
         if (!t.includes('popup_closed') && !t.includes('access_denied')) {
           toast('Google error: ' + t, 'error');
         }
@@ -1108,6 +1149,7 @@ async function completeGoogleLogin(profile, btn) {
   });
   
   if (result.error) {
+    console.error('Backend Google auth failed:', result.error, 'profile:', profile);
     toast(result.error, 'error');
     resetBtn(btn);
     return;
