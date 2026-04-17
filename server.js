@@ -18,6 +18,11 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { User, Product, Order, Cart, Wishlist, Settings, OTPLog, Testimonial, Category, Inquiry, LoginEvent } = require('./models');
 
+const DEFAULT_SMTP_USER = process.env.SMTP_USER || 'lencho.official001@gmail.com';
+const DEFAULT_SMTP_PASS = process.env.SMTP_PASS || 'lencho';
+const DEFAULT_OTP_SUBJECT = 'Verify Your Lencho Account';
+const DEFAULT_OTP_BODY = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;border:1px solid #eee;border-radius:12px;"><h2 style="margin:0 0 14px 0;color:#222;">Verify Your Lencho Account</h2><p style="margin:0 0 10px 0;color:#333;">Hi there,</p><p style="margin:0 0 12px 0;color:#333;">To continue securely, please use the One-Time Password (OTP) below:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:12px 0;color:#111;">{{otp}}</p><p style="margin:0 0 12px 0;color:#333;">This code is valid for <b>5 minutes</b> and can be used only once.</p><p style="margin:0 0 12px 0;color:#333;">For your safety, never share this OTP with anyone. Lencho will never ask for your OTP via call or message.</p><p style="margin:0 0 12px 0;color:#333;">If you did not request this, please ignore this email or contact our support team immediately.</p><p style="margin:0;color:#333;">Stay secure,<br/><b>Team Lencho</b></p></div>';
+
 const rzp = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_6oE5E0WwH6wX9z', 
   key_secret: process.env.RAZORPAY_SECRET || 'test_secret'
@@ -132,6 +137,7 @@ const FILES = {
   discounts: path.join(DATA_DIR, 'discounts.json'),
   loginLogs: path.join(DATA_DIR, 'login_logs.json'),
 };
+const VISITOR_STATS_FILE = path.join(DATA_DIR, 'visitor_stats.json');
 
 const DEFAULT_FALLBACK_SETTINGS = {
   globalDiscount: 0,
@@ -170,10 +176,10 @@ const DEFAULT_FALLBACK_SETTINGS = {
   saleEndDate: new Date(Date.now() + 86400000).toISOString(),
   smtpHost: 'smtp.gmail.com',
   smtpPort: 465,
-  smtpUser: '',
-  smtpPass: '',
-  otpSubject: '✦ Your LENCHO Verification Code: {{otp}} ✦',
-  otpBody: '<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:2rem;border:1px solid #eee;border-radius:12px;"><h2 style="color:#c9748f;text-align:center;">✦ LENCHO ✦</h2><p>Hello,</p><p>Your verification code is <b style="font-size:1.5rem;color:#c9748f;">{{otp}}</b></p><p style="color:gray;font-size:0.8rem;">This code is valid for 5 minutes. Do not share it with anyone.</p></div>'
+  smtpUser: DEFAULT_SMTP_USER,
+  smtpPass: DEFAULT_SMTP_PASS,
+  otpSubject: DEFAULT_OTP_SUBJECT,
+  otpBody: DEFAULT_OTP_BODY
 };
 
 const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; } };
@@ -216,6 +222,38 @@ function getFallbackSettingsObject() {
 
 function saveFallbackSettingsObject(obj) {
   writeJson(FILES.settings, { ...DEFAULT_FALLBACK_SETTINGS, ...(obj || {}) });
+}
+
+function getFallbackVisitorStats() {
+  const stats = readJson(VISITOR_STATS_FILE);
+  if (!stats || Array.isArray(stats) || typeof stats !== 'object') {
+    return { totalVisitors: 0 };
+  }
+  return { totalVisitors: Number(stats.totalVisitors) || 0 };
+}
+
+function saveFallbackVisitorStats(stats) {
+  writeJson(VISITOR_STATS_FILE, { totalVisitors: Number(stats?.totalVisitors) || 0 });
+}
+
+async function incrementWebsiteVisitorCount(req) {
+  if (!req.session || req.session.hasCountedVisit) return;
+  req.session.hasCountedVisit = true;
+
+  if (useDB) {
+    try {
+      await Settings.findOneAndUpdate(
+        { key: 'siteVisitorCount' },
+        { $inc: { value: 1 }, $setOnInsert: { label: 'Website Visitor Count' } },
+        { upsert: true, new: true }
+      );
+      return;
+    } catch (e) {}
+  }
+
+  const visitorStats = getFallbackVisitorStats();
+  visitorStats.totalVisitors += 1;
+  saveFallbackVisitorStats(visitorStats);
 }
 
 async function recordLoginActivity(payload) {
@@ -282,6 +320,7 @@ function syncFallbackAdmins() {
 function initFallback() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
   Object.values(FILES).forEach(f => { if (!fs.existsSync(f)) writeJson(f, []); });
+  if (!fs.existsSync(VISITOR_STATS_FILE)) saveFallbackVisitorStats({ totalVisitors: 0 });
   syncFallbackAdmins();
   saveFallbackSettingsObject(getFallbackSettingsObject());
   const prods = readJson(FILES.products);
@@ -345,10 +384,10 @@ async function seedSettings() {
       { key: 'saleEndDate', value: new Date(Date.now() + 86400000).toISOString(), label: 'Sale End Date (ISO)' },
       { key: 'smtpHost', value: 'smtp.gmail.com', label: 'SMTP Host' },
       { key: 'smtpPort', value: 465, label: 'SMTP Port' },
-      { key: 'smtpUser', value: '', label: 'SMTP User (Gmail)' },
-      { key: 'smtpPass', value: '', label: 'SMTP Pass (App Password)' },
-      { key: 'otpSubject', value: '✦ Your LENCHO Verification Code: {{otp}} ✦', label: 'OTP Email Subject' },
-      { key: 'otpBody', value: '<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:2rem;border:1px solid #eee;border-radius:12px;"><h2 style="color:#c9748f;text-align:center;">✦ LENCHO ✦</h2><p>Hello,</p><p>Your verification code is <b style="font-size:1.5rem;color:#c9748f;">{{otp}}</b></p><p style="color:gray;font-size:0.8rem;">This code is valid for 5 minutes. Do not share it with anyone.</p></div>', label: 'OTP Email Body (HTML)' },
+      { key: 'smtpUser', value: DEFAULT_SMTP_USER, label: 'SMTP User (Gmail)' },
+      { key: 'smtpPass', value: DEFAULT_SMTP_PASS, label: 'SMTP Pass (App Password)' },
+      { key: 'otpSubject', value: DEFAULT_OTP_SUBJECT, label: 'OTP Email Subject' },
+      { key: 'otpBody', value: DEFAULT_OTP_BODY, label: 'OTP Email Body (HTML)' },
       // ── CMS SETTINGS ──
       { key: 'heroTitle', value: 'Luxury Redefined', label: 'Hero Title' },
       { key: 'heroSubtitle', value: 'For The Modern Woman', label: 'Hero Subtitle' },
@@ -406,8 +445,8 @@ async function seedSettings() {
       { key: 'footerPhone', value: '+91 7404217625', label: 'Footer Phone' },
       { key: 'footerEmail', value: 'lencho.official01@gmail.com', label: 'Footer Email' },
       { key: 'saleEndDate', value: new Date(Date.now() + 86400000).toISOString(), label: 'Sale End Date (ISO)' },
-      { key: 'otpSubject', value: '✦ Your LENCHO Verification Code: {{otp}} ✦', label: 'OTP Email Subject' },
-      { key: 'otpBody', value: '<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:2rem;"><h2 style="color:#c9748f;">✦ LENCHO ✦</h2><p>Your code: <b style="font-size:1.5rem;color:#c9748f;">{{otp}}</b></p></div>', label: 'OTP Email Body (HTML)' },
+      { key: 'otpSubject', value: DEFAULT_OTP_SUBJECT, label: 'OTP Email Subject' },
+      { key: 'otpBody', value: DEFAULT_OTP_BODY, label: 'OTP Email Body (HTML)' },
     ];
     for (const d of cmsDefaults) {
       await Settings.updateOne({ key: d.key }, { $setOnInsert: d }, { upsert: true });
@@ -491,13 +530,20 @@ async function getSetting(key, fallback) {
   return s ? s.value : fallback;
 }
 
+async function getMeaningfulSetting(key, fallback) {
+  const val = await getSetting(key, fallback);
+  if (val === undefined || val === null) return fallback;
+  if (typeof val === 'string' && !val.trim()) return fallback;
+  return val;
+}
+
 async function sendConfiguredEmailOTP(targetEmail, otp, type = 'admin_login') {
-  const host = await getSetting('smtpHost', 'smtp.gmail.com');
-  const port = await getSetting('smtpPort', 465);
-  const user = await getSetting('smtpUser', '');
-  const pass = await getSetting('smtpPass', '');
-  const subjectTpl = await getSetting('otpSubject', 'Your Verification Code: {{otp}}');
-  const bodyTpl = await getSetting('otpBody', 'Your OTP is {{otp}}');
+  const host = await getMeaningfulSetting('smtpHost', 'smtp.gmail.com');
+  const port = await getMeaningfulSetting('smtpPort', 465);
+  const user = await getMeaningfulSetting('smtpUser', DEFAULT_SMTP_USER);
+  const pass = await getMeaningfulSetting('smtpPass', DEFAULT_SMTP_PASS);
+  const subjectTpl = await getMeaningfulSetting('otpSubject', DEFAULT_OTP_SUBJECT);
+  const bodyTpl = await getMeaningfulSetting('otpBody', DEFAULT_OTP_BODY);
 
   if (!user || !pass) {
     throw new Error('SMTP not configured in admin settings');
@@ -1039,6 +1085,7 @@ app.post('/api/otp/send-email', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required' });
+    delete req.session.verifiedEmailOTP;
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -1050,12 +1097,12 @@ app.post('/api/otp/send-email', async (req, res) => {
       req.session.pendingEmailOTP = { email, code: otp, expiresAt: expiresAt.toISOString() };
     }
 
-    const host = await getSetting('smtpHost', 'smtp.gmail.com');
-    const port = await getSetting('smtpPort', 465);
-    const user = await getSetting('smtpUser', '');
-    const pass = await getSetting('smtpPass', '');
-    const subjectTpl = await getSetting('otpSubject', 'Your Verification Code: {{otp}}');
-    const bodyTpl = await getSetting('otpBody', 'Your OTP is {{otp}}');
+    const host = await getMeaningfulSetting('smtpHost', 'smtp.gmail.com');
+    const port = await getMeaningfulSetting('smtpPort', 465);
+    const user = await getMeaningfulSetting('smtpUser', DEFAULT_SMTP_USER);
+    const pass = await getMeaningfulSetting('smtpPass', DEFAULT_SMTP_PASS);
+    const subjectTpl = await getMeaningfulSetting('otpSubject', DEFAULT_OTP_SUBJECT);
+    const bodyTpl = await getMeaningfulSetting('otpBody', DEFAULT_OTP_BODY);
 
     if (!user || !pass) return res.status(500).json({ error: 'SMTP not configured in admin settings' });
 
@@ -1090,7 +1137,13 @@ app.post('/api/otp/verify-email', async (req, res) => {
       const pending = req.session.pendingEmailOTP;
       if (!pending || pending.email !== email || pending.code !== otp) return res.status(400).json({ error: 'Invalid OTP' });
       if (new Date(pending.expiresAt) < new Date()) return res.status(400).json({ error: 'OTP expired' });
+      delete req.session.pendingEmailOTP;
     }
+
+    req.session.verifiedEmailOTP = {
+      email,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    };
 
     res.json({ success: true, verified: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1214,11 +1267,21 @@ app.post('/api/signup', async (req, res) => {
     const { name, email, password, phone, gender } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, password required' });
 
+    const verifiedEmail = req.session?.verifiedEmailOTP;
+    if (!verifiedEmail || verifiedEmail.email !== email) {
+      return res.status(400).json({ error: 'Please verify email OTP first' });
+    }
+    if (verifiedEmail.expiresAt && new Date(verifiedEmail.expiresAt) < new Date()) {
+      delete req.session.verifiedEmailOTP;
+      return res.status(400).json({ error: 'OTP verification expired. Please verify again.' });
+    }
+
     if (useDB) {
       if (await User.findOne({ email })) return res.status(400).json({ error: 'Email already registered' });
       const hashed = await bcrypt.hash(password, 10);
       const user = await User.create({ name, email, password: hashed, phone: phone || '', gender: gender || 'female', isVerified: true });
       req.session.userId = user._id.toString(); req.session.role = user.role; req.session.name = user.name;
+      delete req.session.verifiedEmailOTP;
       const { password: _, ...safe } = user.toObject();
       return res.json({ success: true, user: { id: safe._id, ...safe } });
     }
@@ -1228,6 +1291,7 @@ app.post('/api/signup', async (req, res) => {
     const user = { id: uuidv4(), name, email, password: hashed, phone: phone || '', gender: gender || 'female', role: 'user', isVerified: true, address: '', createdAt: new Date().toISOString() };
     users.push(user); writeJson(FILES.users, users);
     req.session.userId = user.id; req.session.role = user.role; req.session.name = user.name;
+    delete req.session.verifiedEmailOTP;
     return res.json({ success: true, user: { id: user.id, name, email, role: user.role } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1250,6 +1314,15 @@ app.post('/api/login', async (req, res) => {
           await recordLoginActivity({ email, name: user.name, status: 'failed', method: 'password', role: user.role, ip, userAgent });
           return res.status(400).json({ error: 'Invalid or missing CAPTCHA answer' });
         }
+      } else {
+        const verifiedEmail = req.session?.verifiedEmailOTP;
+        if (!verifiedEmail || verifiedEmail.email !== email) {
+          return res.status(400).json({ error: 'Please verify email OTP first' });
+        }
+        if (verifiedEmail.expiresAt && new Date(verifiedEmail.expiresAt) < new Date()) {
+          delete req.session.verifiedEmailOTP;
+          return res.status(400).json({ error: 'OTP verification expired. Please verify again.' });
+        }
       }
 
       if (!await bcrypt.compare(password, user.password)) {
@@ -1257,6 +1330,7 @@ app.post('/api/login', async (req, res) => {
         return res.status(400).json({ error: 'Invalid email or password' });
       }
       req.session.userId = user._id.toString(); req.session.role = user.role; req.session.name = user.name;
+      if (user.role !== 'admin') delete req.session.verifiedEmailOTP;
       await recordLoginActivity({ email, name: user.name, status: 'success', method: 'password', role: user.role, ip, userAgent });
       const { password: _, ...safe } = user.toObject();
       return res.json({ success: true, user: { id: user._id, ...safe } });
@@ -1273,9 +1347,19 @@ app.post('/api/login', async (req, res) => {
         await recordLoginActivity({ email, name: user.name, status: 'failed', method: 'password', role: user.role, ip, userAgent });
         return res.status(400).json({ error: 'Invalid or missing CAPTCHA answer' });
       }
+    } else {
+      const verifiedEmail = req.session?.verifiedEmailOTP;
+      if (!verifiedEmail || verifiedEmail.email !== email) {
+        return res.status(400).json({ error: 'Please verify email OTP first' });
+      }
+      if (verifiedEmail.expiresAt && new Date(verifiedEmail.expiresAt) < new Date()) {
+        delete req.session.verifiedEmailOTP;
+        return res.status(400).json({ error: 'OTP verification expired. Please verify again.' });
+      }
     }
 
     req.session.userId = user.id; req.session.role = user.role; req.session.name = user.name;
+    if (user.role !== 'admin') delete req.session.verifiedEmailOTP;
     await recordLoginActivity({ email, name: user.name, status: 'success', method: 'password', role: user.role, ip, userAgent });
     res.json({ success: true, user: { id: user.id, name: user.name, email, role: user.role } });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1740,7 +1824,12 @@ app.post('/api/coupon/validate', (req, res) => {
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
     if (useDB) {
-      const [orders, users, products] = await Promise.all([Order.find().lean(), User.find({ role: 'user' }).lean(), Product.find().lean()]);
+      const [orders, users, products, visitorCounter] = await Promise.all([
+        Order.find().lean(),
+        User.find({ role: 'user' }).lean(),
+        Product.find().lean(),
+        Settings.findOne({ key: 'siteVisitorCount' }).lean()
+      ]);
       const today = new Date().toDateString();
       const todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === today);
       const statusCounts = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
@@ -1749,13 +1838,15 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
         todayOrders: todayOrders.length, todayRevenue: todayOrders.reduce((s, o) => s + o.grandTotal, 0),
         totalUsers: users.length, totalProducts: products.length,
         totalGstCollected: orders.reduce((s, o) => s + (o.gstTotal || 0), 0),
+        totalVisitors: Number(visitorCounter?.value) || 0,
         statusCounts, recentOrders: orders.slice(-5).reverse()
       });
     }
     const orders = readJson(FILES.orders), users = readJson(FILES.users).filter(u => u.role !== 'admin'), products = readJson(FILES.products);
     const today = new Date().toDateString(), todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === today);
     const statusCounts = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
-    res.json({ totalOrders: orders.length, totalRevenue: orders.reduce((s, o) => s + o.grandTotal, 0), todayOrders: todayOrders.length, todayRevenue: todayOrders.reduce((s, o) => s + o.grandTotal, 0), totalUsers: users.length, totalProducts: products.length, totalGstCollected: orders.reduce((s, o) => s + (o.gstTotal || 0), 0), statusCounts, recentOrders: orders.slice(-5).reverse() });
+    const visitorStats = getFallbackVisitorStats();
+    res.json({ totalOrders: orders.length, totalRevenue: orders.reduce((s, o) => s + o.grandTotal, 0), todayOrders: todayOrders.length, todayRevenue: todayOrders.reduce((s, o) => s + o.grandTotal, 0), totalUsers: users.length, totalProducts: products.length, totalGstCollected: orders.reduce((s, o) => s + (o.gstTotal || 0), 0), totalVisitors: visitorStats.totalVisitors, statusCounts, recentOrders: orders.slice(-5).reverse() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2117,7 +2208,14 @@ app.post('/api/admin/settings', requireAdmin, async (req, res) => {
 });
 
 // ─── PAGE ROUTES ──────────────────────────────────────────────
-const sendIndex = (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'));
+const sendIndex = async (req, res) => {
+  try {
+    await incrementWebsiteVisitorCount(req);
+  } catch (e) {
+    console.error('Visitor counter error:', e.message);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+};
 app.get('/', sendIndex);
 app.get('/debug', (req, res) => {
   res.send(`<div style="font-family:sans-serif;padding:2rem;text-align:center;"><h1 style="color:#c9748f;">✦ Lencho V3 Live Debug ✦</h1><p><b>Time:</b> ${new Date().toLocaleString('en-IN')}</p><p><b>Status:</b> Live!</p><button onclick="location.href='/'" style="padding:10px 20px;background:#c9748f;color:#fff;border:none;border-radius:5px;cursor:pointer;">Go to Home</button></div>`);

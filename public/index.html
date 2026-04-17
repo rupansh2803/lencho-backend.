@@ -189,10 +189,8 @@
         </div>
         <div class="form-group"><label>Email Address *</label><input type="email" id="signup-email" placeholder="you@example.com"/></div>
         <div class="form-group"><label>Phone Number</label><input type="tel" id="signup-phone" placeholder="+91 98765 43210"/></div>
-        <div class="form-group"><label>Password *</label><input type="password" id="signup-password" placeholder="Create strong password (min 6 chars)"/></div>
-        <div class="form-group"><label>Confirm Password *</label><input type="password" id="signup-confirm-password" placeholder="Re-enter password"/></div>
         <div id="signup-error" class="form-error"></div>
-        <button class="btn-primary full-width" id="signup-btn" onclick="handleSignup()">Create Account ✦</button>
+        <button class="btn-primary full-width" id="signup-btn" onclick="handleSignup()">Send OTP ✦</button>
         <div class="modal-divider"><span>or</span></div>
         <button class="btn-outline full-width" onclick="switchToLogin()">Already have an account? Sign In</button>
       </div>
@@ -210,6 +208,24 @@
         <p style="text-align:center;font-size:0.8rem;color:var(--gray);margin-top:1.5rem;">
           Didn't receive it? <span style="color:var(--rose);cursor:pointer;font-weight:600;" onclick="resendEmailOTP()">Resend OTP</span>
         </p>
+      </div>
+
+      <div id="auth-signup-password-step" style="display:none">
+        <div class="modal-logo"><img src="/images/logo.png" alt="Lencho Logo"/></div>
+        <h2 class="modal-title">Set Password</h2>
+        <p class="modal-sub">Email verified. Now create your account password.</p>
+        <div class="form-group" style="margin-top:1.25rem;">
+          <label>Password *</label>
+          <input type="password" id="signup-password-step" placeholder="Create strong password (min 6 chars)"/>
+        </div>
+        <div class="form-group">
+          <label>Confirm Password *</label>
+          <input type="password" id="signup-confirm-password-step" placeholder="Re-enter password"/>
+        </div>
+        <div id="signup-password-step-error" class="form-error"></div>
+        <button class="btn-primary full-width" onclick="completeSignupAfterOTP()">Create Account ✦</button>
+        <div class="modal-divider"><span>or</span></div>
+        <button class="btn-outline full-width" onclick="switchToSignup()">Back to Signup</button>
       </div>
     </div>
   </div>

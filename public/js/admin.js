@@ -282,12 +282,25 @@ async function deleteInquiry(id) {
 
 async function adminDashboard() {
   const s = await api('/api/admin/stats');
+  const formatVisitorCount = (value) => {
+    const count = Number(value) || 0;
+    if (count >= 10000000) {
+      const crore = count / 10000000;
+      return `${crore % 1 === 0 ? crore.toFixed(0) : crore.toFixed(1)} crore`;
+    }
+    if (count >= 100000) {
+      const lakh = count / 100000;
+      return `${lakh % 1 === 0 ? lakh.toFixed(0) : lakh.toFixed(1)} lakh`;
+    }
+    return count.toLocaleString('en-IN');
+  };
   document.getElementById('admin-content').innerHTML = `
   <div class="admin-header"><h1 class="admin-page-title">Dashboard Overview</h1><span style="font-size:.875rem;color:var(--gray);">${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span></div>
   <div class="stats-grid">
     <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Total Revenue</div><div class="stat-value">${formatCurrency(s.totalRevenue)}</div><div class="stat-change">↑ All time</div></div>
     <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">Total Orders</div><div class="stat-value">${s.totalOrders}</div><div class="stat-change">Today: ${s.todayOrders}</div></div>
     <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-label">Customers</div><div class="stat-value">${s.totalUsers}</div><div class="stat-change">Registered users</div></div>
+    <div class="stat-card"><div class="stat-icon">👁️</div><div class="stat-label">Website Visitors</div><div class="stat-value">${formatVisitorCount(s.totalVisitors)}</div><div class="stat-change">Total unique sessions</div></div>
     <div class="stat-card"><div class="stat-icon">🏷️</div><div class="stat-label">Total GST Collected</div><div class="stat-value">${formatCurrency(s.totalGstCollected)}</div><div class="stat-change">All orders</div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">

@@ -124,12 +124,24 @@ function closeAuthModal() {
   document.getElementById('auth-modal').style.display = 'none';
   document.body.style.overflow = '';
   document.documentElement.style.overflow = '';
+  window.pendingAuth = null;
+  document.getElementById('auth-otp-step').style.display = 'none';
+  const signupPasswordStep = document.getElementById('auth-signup-password-step');
+  if (signupPasswordStep) signupPasswordStep.style.display = 'none';
+  document.getElementById('auth-signup-form').style.display = 'none';
+  document.getElementById('auth-login-form').style.display = 'block';
 }
 function switchToSignup() {
   document.getElementById('auth-login-form').style.display = 'none';
+  document.getElementById('auth-otp-step').style.display = 'none';
+  const signupPasswordStep = document.getElementById('auth-signup-password-step');
+  if (signupPasswordStep) signupPasswordStep.style.display = 'none';
   document.getElementById('auth-signup-form').style.display = 'block';
 }
 function switchToLogin() {
+  document.getElementById('auth-otp-step').style.display = 'none';
+  const signupPasswordStep = document.getElementById('auth-signup-password-step');
+  if (signupPasswordStep) signupPasswordStep.style.display = 'none';
   document.getElementById('auth-signup-form').style.display = 'none';
   document.getElementById('auth-login-form').style.display = 'block';
 }
@@ -147,16 +159,13 @@ async function handleLogin() {
 async function handleSignup() {
   const name = document.getElementById('signup-name').value;
   const email = document.getElementById('signup-email').value;
-  const password = document.getElementById('signup-password').value;
-  const confirmPassword = document.getElementById('signup-confirm-password')?.value;
+  const gender = document.getElementById('signup-gender')?.value || 'female';
   const phone = document.getElementById('signup-phone')?.value || '';
   const err = document.getElementById('signup-error');
   
-  if(!name || !email || !password) { err.textContent = 'Please fill name, email and password'; return; }
-  if(password.length < 6) { err.textContent = 'Password must be at least 6 characters'; return; }
-  if(confirmPassword !== undefined && password !== confirmPassword) { err.textContent = 'Passwords do not match'; return; }
+  if(!name || !email) { err.textContent = 'Please fill name and email'; return; }
 
-  window.pendingAuth = { type: 'signup', name, email, password, phone };
+  window.pendingAuth = { type: 'signup', name, email, phone, gender };
   sendEmailOTP(email, 'auth-signup-form', 'signup-error');
 }
 
@@ -175,6 +184,8 @@ async function sendEmailOTP(email, currentFormId, errorId) {
   if (resp.error) { err.textContent = resp.error; return; }
   
   document.getElementById(currentFormId).style.display = 'none';
+  document.getElementById('otp-error').textContent = '';
+  document.getElementById('auth-otp-input').value = '';
   document.getElementById('auth-otp-step').style.display = 'block';
   toast('OTP sent to your email! 📧', 'success');
 }
@@ -187,8 +198,18 @@ async function verifyEmailOTP() {
   const resp = await api('/api/otp/verify-email', { method: 'POST', body: { email, otp } });
   if (resp.error) { err.textContent = resp.error; return; }
 
-  // OTP Verified, now complete the original action
   const p = window.pendingAuth;
+  if (p.type === 'signup') {
+    document.getElementById('auth-otp-step').style.display = 'none';
+    document.getElementById('signup-password-step-error').textContent = '';
+    document.getElementById('signup-password-step').value = '';
+    document.getElementById('signup-confirm-password-step').value = '';
+    document.getElementById('auth-signup-password-step').style.display = 'block';
+    toast('Email verified. Now set your password.', 'success');
+    return;
+  }
+
+  // OTP Verified, now complete the original login action
   const endpoint = p.type === 'login' ? '/api/login' : '/api/signup';
   const finalResp = await api(endpoint, { method: 'POST', body: p });
   
@@ -200,6 +221,30 @@ async function verifyEmailOTP() {
   toast(`Welcome ${currentUser.name}! ✦`, 'success');
   updateCartCount();
   if (currentUser.role === 'admin') navigate('/admin');
+}
+
+async function completeSignupAfterOTP() {
+  const password = document.getElementById('signup-password-step').value;
+  const confirmPassword = document.getElementById('signup-confirm-password-step').value;
+  const err = document.getElementById('signup-password-step-error');
+
+  if (!window.pendingAuth || window.pendingAuth.type !== 'signup') {
+    err.textContent = 'Signup session expired. Please start again.';
+    return;
+  }
+  if (!password) { err.textContent = 'Please enter password'; return; }
+  if (password.length < 6) { err.textContent = 'Password must be at least 6 characters'; return; }
+  if (password !== confirmPassword) { err.textContent = 'Passwords do not match'; return; }
+
+  const payload = { ...window.pendingAuth, password };
+  const finalResp = await api('/api/signup', { method: 'POST', body: payload });
+  if (finalResp.error) { err.textContent = finalResp.error; return; }
+
+  currentUser = finalResp.user;
+  updateHeader();
+  closeAuthModal();
+  toast(`Welcome ${currentUser.name}! ✦`, 'success');
+  updateCartCount();
 }
 
 function resendEmailOTP() {
