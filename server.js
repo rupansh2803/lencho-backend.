@@ -21,8 +21,50 @@ const { User, Product, Order, Cart, Wishlist, Settings, OTPLog, Testimonial, Cat
 const DEFAULT_SMTP_USER = process.env.SMTP_USER || process.env.EMAIL_USER || '';
 const DEFAULT_SMTP_PASS = process.env.SMTP_PASS || process.env.EMAIL_PASS || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://lencho.in';
-const DEFAULT_OTP_SUBJECT = 'Verify Your Lencho Account';
-const DEFAULT_OTP_BODY = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;border:1px solid #eee;border-radius:12px;"><h2 style="margin:0 0 14px 0;color:#222;">Verify Your Lencho Account</h2><p style="margin:0 0 10px 0;color:#333;">Hi there,</p><p style="margin:0 0 12px 0;color:#333;">To continue securely, please use the One-Time Password (OTP) below:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:12px 0;color:#111;">{{otp}}</p><p style="margin:0 0 12px 0;color:#333;">This code is valid for <b>5 minutes</b> and can be used only once.</p><p style="margin:0 0 12px 0;color:#333;">For your safety, never share this OTP with anyone. Lencho will never ask for your OTP via call or message.</p><p style="margin:0 0 12px 0;color:#333;">If you did not request this, please ignore this email or contact our support team immediately.</p><p style="margin:0;color:#333;">Stay secure,<br/><b>Team Lencho</b></p></div>';
+const DEFAULT_EMAIL_FROM_NAME = 'Lencho';
+const DEFAULT_OTP_SUBJECT = 'Lencho OTP Code';
+const DEFAULT_OTP_BODY = `
+<div style="margin:0;padding:0;background:#f5f6fa;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f5f6fa;padding:24px 10px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #ececec;border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#c96a8a,#9b4065);padding:20px 24px;color:#ffffff;font-family:Arial,sans-serif;font-size:24px;font-weight:700;">
+              Lencho
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:26px 24px 12px;font-family:Arial,sans-serif;color:#222;">
+              <h2 style="margin:0 0 10px;font-size:28px;line-height:1.2;">Verify your account</h2>
+              <p style="margin:0;font-size:16px;line-height:1.6;color:#4a4a4a;">Use this 6-digit OTP to continue your signup or login.</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:10px 24px 6px;">
+              <div style="display:inline-block;background:#111827;color:#ffffff;font-family:Arial,sans-serif;font-size:34px;font-weight:700;letter-spacing:10px;padding:14px 26px;border-radius:12px;">{{otp}}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:12px 24px 10px;font-family:Arial,sans-serif;color:#4a4a4a;">
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;">This code is valid for <b>10 minutes</b>.</p>
+              <p style="margin:0;font-size:15px;line-height:1.6;">If you did not request this OTP, you can safely ignore this email.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px 22px;border-top:1px solid #efefef;font-family:Arial,sans-serif;color:#888;font-size:13px;line-height:1.5;">
+              © ${new Date().getFullYear()} Lencho. All rights reserved.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>`;
+
+function sanitizeFromName(name) {
+  return String(name || '').replace(/["<>\r\n]/g, '').trim();
+}
 
 function isPlaceholderSMTP(value) {
   if (value === undefined || value === null) return true;
@@ -58,18 +100,34 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:30054',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:30054',
   'https://lencho.in',
   'https://www.lencho.in',
   'https://lencho.netlify.app',
   'https://api.lencho.in'
 ];
 
+const configuredFrontendOrigin = String(FRONTEND_URL || '').replace(/\/+$/, '');
+const allowedOriginSet = new Set([
+  ...allowedOrigins,
+  configuredFrontendOrigin
+].filter(Boolean));
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOriginSet.has(origin)) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/i.test(origin)) return true;
+  if (/^https:\/\/([a-z0-9-]+--)?lencho\.netlify\.app$/i.test(origin)) return true;
+  return false;
+}
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('CORS not allowed'));
+      callback(new Error(`CORS not allowed: ${origin}`));
     }
   },
   credentials: true
@@ -566,8 +624,9 @@ async function sendConfiguredEmailOTP(targetEmail, otp, type = 'admin_login') {
   const port = await getMeaningfulSetting('smtpPort', 465);
   const user = await getMeaningfulSetting('smtpUser', DEFAULT_SMTP_USER);
   const pass = await getMeaningfulSetting('smtpPass', DEFAULT_SMTP_PASS);
-  const subjectTpl = await getMeaningfulSetting('otpSubject', DEFAULT_OTP_SUBJECT);
-  const bodyTpl = await getMeaningfulSetting('otpBody', DEFAULT_OTP_BODY);
+  const subjectTpl = DEFAULT_OTP_SUBJECT;
+  const bodyTpl = DEFAULT_OTP_BODY;
+  const storeName = sanitizeFromName(await getMeaningfulSetting('storeName', DEFAULT_EMAIL_FROM_NAME)) || DEFAULT_EMAIL_FROM_NAME;
 
   if (isPlaceholderSMTP(user) || isPlaceholderSMTP(pass)) {
     throw new Error('SMTP not configured in admin settings');
@@ -582,7 +641,7 @@ async function sendConfiguredEmailOTP(targetEmail, otp, type = 'admin_login') {
 
   try {
     await transporter.sendMail({
-      from: `"Lencho Secure" <${user}>`,
+      from: `"${storeName}" <${user}>`,
       to: targetEmail,
       subject: subjectTpl.replace('{{otp}}', otp),
       html: bodyTpl.replace('{{otp}}', otp)
@@ -1129,8 +1188,9 @@ app.post('/api/otp/send-email', async (req, res) => {
     const port = await getMeaningfulSetting('smtpPort', 465);
     const user = await getMeaningfulSetting('smtpUser', DEFAULT_SMTP_USER);
     const pass = await getMeaningfulSetting('smtpPass', DEFAULT_SMTP_PASS);
-    const subjectTpl = await getMeaningfulSetting('otpSubject', DEFAULT_OTP_SUBJECT);
-    const bodyTpl = await getMeaningfulSetting('otpBody', DEFAULT_OTP_BODY);
+    const subjectTpl = DEFAULT_OTP_SUBJECT;
+    const bodyTpl = DEFAULT_OTP_BODY;
+    const storeName = sanitizeFromName(await getMeaningfulSetting('storeName', DEFAULT_EMAIL_FROM_NAME)) || DEFAULT_EMAIL_FROM_NAME;
 
     if (isPlaceholderSMTP(user) || isPlaceholderSMTP(pass)) {
       return res.status(500).json({
@@ -1145,7 +1205,7 @@ app.post('/api/otp/send-email', async (req, res) => {
 
     try {
       await transporter.sendMail({
-        from: `"Lencho Secure" <${user}>`,
+        from: `"${storeName}" <${user}>`,
         to: email,
         subject: subjectTpl.replace('{{otp}}', otp),
         html: bodyTpl.replace('{{otp}}', otp)

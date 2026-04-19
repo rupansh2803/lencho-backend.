@@ -343,6 +343,28 @@ async function applyCoupon(amount) {
 }
 
 /* ── CHECKOUT PAGE ────────────────────────────────────────── */
+function ensureRazorpayLoaded() {
+  if (window.Razorpay) return Promise.resolve(true);
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-razorpay-sdk="1"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Razorpay SDK failed to load')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.defer = true;
+    script.dataset.razorpaySdk = '1';
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Razorpay SDK failed to load'));
+    document.head.appendChild(script);
+  });
+}
+
 async function renderCheckout() {
   if (!currentUser) { openAuthModal(); navigate('/'); return; }
   const r = await api('/api/cart');
@@ -442,6 +464,7 @@ async function placeOrder() {
   } else {
     // 2. Handle Razorpay
     try {
+      await ensureRazorpayLoaded();
       const publicSettings = await api('/api/settings/public');
       // Create Razorpay Order
       const rzpOrder = await api('/api/razorpay/order', { method: 'POST', body: { amount: order.grandTotal, receipt: order.id } });

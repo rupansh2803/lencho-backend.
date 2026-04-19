@@ -40,16 +40,17 @@
   <!-- Preconnect to External Resources -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://images.unsplash.com" crossorigin/>
+  <link rel="preconnect" href="https://plus.unsplash.com" crossorigin/>
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net"/>
+  <link rel="dns-prefetch" href="https://images.unsplash.com"/>
+  <link rel="dns-prefetch" href="https://plus.unsplash.com"/>
   
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Jost:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet"/>
   
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  
-  <!-- Razorpay SDK -->
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   
   <!-- Stylesheets -->
   <link rel="stylesheet" href="/css/style.css?v=4.2"/>
@@ -201,7 +202,7 @@
         <p class="modal-sub">We've sent a 6-digit code to your email</p>
         <div class="form-group" style="margin-top:2rem;">
           <label>Enter OTP Code</label>
-          <input type="text" id="auth-otp-input" placeholder="123456" maxlength="6" style="text-align:center;font-size:1.8rem;letter-spacing:8px;font-weight:700;border:2px solid var(--rose);"/>
+          <input type="password" id="auth-otp-input" placeholder="X X X X X X" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="text-align:center;font-size:1.8rem;letter-spacing:8px;font-weight:700;border:2px solid var(--rose);"/>
         </div>
         <div id="otp-error" class="form-error"></div>
         <button class="btn-primary full-width" onclick="verifyEmailOTP()">Verify & Continue ✦</button>

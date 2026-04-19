@@ -1,6 +1,76 @@
 /* ── LENCHO – MAIN APP ─────────────────────────────── */
 let currentUser = null;
 let cartCount = 0;
+let cachedPublicSettings = null;
+let publicSettingsPromise = null;
+
+const SETTINGS_CACHE_KEY = 'lencho_public_settings_cache_v1';
+
+function readCachedPublicSettings() {
+  if (cachedPublicSettings && typeof cachedPublicSettings === 'object') return cachedPublicSettings;
+  try {
+    const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    cachedPublicSettings = normalizeSettings(parsed);
+    return cachedPublicSettings;
+  } catch {
+    return {};
+  }
+}
+
+function saveCachedPublicSettings(settings) {
+  const normalized = normalizeSettings(settings);
+  cachedPublicSettings = normalized;
+  try {
+    localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(normalized));
+  } catch {}
+  return normalized;
+}
+
+function withTimeout(promise, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(null);
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(null);
+      });
+  });
+}
+
+async function fetchPublicSettings(options = {}) {
+  const { force = false, timeoutMs = 3000 } = options;
+  if (!force && cachedPublicSettings) return cachedPublicSettings;
+  if (!force && publicSettingsPromise) return publicSettingsPromise;
+
+  publicSettingsPromise = (async () => {
+    const resp = await withTimeout(api('/api/settings'), timeoutMs);
+    const normalized = normalizeSettings(resp || {});
+    if (!resp || resp.error || Object.keys(normalized).length === 0) {
+      return readCachedPublicSettings();
+    }
+    return saveCachedPublicSettings(normalized);
+  })();
+
+  const data = await publicSettingsPromise;
+  publicSettingsPromise = null;
+  return data;
+}
 
 function getHeaderOffset() {
   return window.innerWidth <= 768 ? '110px' : '72px';
@@ -101,11 +171,17 @@ function updateHeader() {
 }
 
 function handleUserClick() {
+  const nav = document.getElementById('main-nav');
+  const isMobileMenuOpen = window.innerWidth <= 768 && nav && nav.classList.contains('open');
+  if (isMobileMenuOpen) nav.classList.remove('open');
+
   if (currentUser) {
     if (currentUser.role === 'admin') navigate('/admin');
     else navigate('/dashboard');
   } else {
     openAuthModal();
+    // From mobile side menu, jump directly to signup step.
+    if (isMobileMenuOpen) switchToSignup();
   }
 }
 
@@ -179,7 +255,7 @@ async function sendEmailOTP(email, currentFormId, errorId) {
   
   const resp = await api('/api/otp/send-email', { method: 'POST', body: { email } });
   
-  if (btn) { btn.disabled = false; btn.textContent = currentFormId === 'auth-login-form' ? 'Sign In' : 'Create Account ✦'; }
+  if (btn) { btn.disabled = false; btn.textContent = currentFormId === 'auth-login-form' ? 'Sign In' : 'Send OTP ✦'; }
   
   if (resp.error) {
     const raw = String(resp.error || '');
@@ -199,9 +275,14 @@ async function sendEmailOTP(email, currentFormId, errorId) {
 }
 
 async function verifyEmailOTP() {
-  const otp = document.getElementById('auth-otp-input').value;
+  const otp = String(document.getElementById('auth-otp-input').value || '').replace(/\D/g, '').slice(0, 6);
   const err = document.getElementById('otp-error');
   const email = window.pendingAuth.email;
+
+  if (otp.length !== 6) {
+    err.textContent = 'Please enter a valid 6-digit OTP';
+    return;
+  }
   
   const resp = await api('/api/otp/verify-email', { method: 'POST', body: { email, otp } });
   if (resp.error) { err.textContent = resp.error; return; }
@@ -376,6 +457,11 @@ function initHeader() {
     }
   }
 
+  const closeMobileMenu = () => {
+    const nav = document.getElementById('main-nav');
+    if (window.innerWidth <= 768 && nav) nav.classList.remove('open');
+  };
+
   syncMobileHeaderLayout();
   window.addEventListener('resize', syncMobileHeaderLayout, { passive: true });
 
@@ -389,7 +475,12 @@ function initHeader() {
     document.getElementById('main-nav').classList.remove('open');
   });
   document.querySelectorAll('.nav-link').forEach(l => {
-    l.addEventListener('click', () => document.getElementById('main-nav').classList.remove('open'));
+    l.addEventListener('click', closeMobileMenu);
+  });
+
+  // Close drawer on all actionable elements inside mobile nav.
+  document.querySelectorAll('#main-nav a, #main-nav .icon-btn').forEach(el => {
+    el.addEventListener('click', closeMobileMenu);
   });
 }
 
@@ -588,15 +679,31 @@ function applyCmsDesign(cms) {
   root.style.setProperty('--radius', String(radius));
 }
 
-async function renderHome() {
+async function renderHome(options = {}) {
+  const { skipRefresh = false } = options;
   const app = document.getElementById('app');
 
-  // Fetch CMS settings
-  let cms = {};
-  try {
-    const settings = await api('/api/settings');
-    cms = normalizeSettings(settings);
-  } catch(e) {}
+  // Render immediately with cached/default settings so first paint is instant.
+  let cms = readCachedPublicSettings();
+  const hasCachedSettings = Object.keys(cms).length > 0;
+
+  if (!hasCachedSettings) {
+    // Start background fetch without blocking first render.
+    fetchPublicSettings({ timeoutMs: 1500 }).catch(() => {});
+  }
+
+  if (!skipRefresh) {
+    fetchPublicSettings({ force: !hasCachedSettings, timeoutMs: 3000 })
+      .then((freshSettings) => {
+        if (!freshSettings || Object.keys(freshSettings).length === 0) return;
+        const sameRoute = location.pathname === '/' || location.pathname === '';
+        if (!sameRoute) return;
+        const next = JSON.stringify(freshSettings);
+        const curr = JSON.stringify(cms || {});
+        if (next !== curr) renderHome({ skipRefresh: true });
+      })
+      .catch(() => {});
+  }
 
   applyCmsDesign(cms);
 
@@ -1031,7 +1138,7 @@ async function sortProducts(sort, category) {
 
 async function loadPublicSettings() {
   try {
-    const s = normalizeSettings(await api('/api/settings'));
+    const s = await fetchPublicSettings({ timeoutMs: 2500 });
     const wb = document.getElementById('whatsapp-btn');
     if (wb && s.whatsappNumber) wb.href = 'https://wa.me/' + s.whatsappNumber + '?text=Hi%20Lencho%20India!';
   } catch (e) { }
@@ -1039,7 +1146,7 @@ async function loadPublicSettings() {
 
 // ── SOCIAL SYNC ───────────────────────────────────────────
 async function syncSocialLinks() {
-  const s = normalizeSettings(await api('/api/settings'));
+  const s = await fetchPublicSettings({ timeoutMs: 2500 });
   if (s.error) return;
   
   const fb = document.querySelector('.social-icon i.fa-facebook-f')?.parentElement;
@@ -1055,7 +1162,7 @@ async function syncSocialLinks() {
 }
 
 // ── INIT ──────────────────────────────────────────────────
-window.onload = async () => {
+async function bootstrapApp() {
   try {
     // ✨ PARALLEL INITIALIZATION: Run non-blocking tasks together
     const initPromises = [];
@@ -1084,7 +1191,13 @@ window.onload = async () => {
     console.error('Init Error:', e);
     navigate(location.pathname + location.search, false);
   }
-};
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', bootstrapApp, { once: true });
+} else {
+  bootstrapApp();
+}
 
 // ── GOOGLE OAUTH ─────────────────────────────────────────────
 const GOOGLE_CLIENT_ID = '1074667694021-1b9v8blpaq6l6ik0na3fq6c8prg9hm3q.apps.googleusercontent.com';
@@ -1117,6 +1230,49 @@ function doGoogleSignIn(btn) {
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_ID.includes('.apps.googleusercontent.com')) {
       toast('Google Client ID missing/invalid', 'error');
       console.error('Invalid GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+      resetBtn(btn);
+      return;
+    }
+
+    // Prefer ID flow first (fewer moving parts). If unavailable, fallback to OAuth token flow.
+    if (google.accounts && google.accounts.id) {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response) => {
+          if (!response || !response.credential) {
+            startGoogleTokenFlow(btn);
+            return;
+          }
+          handleGoogleCredential(response, btn);
+        },
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: true
+      });
+
+      google.accounts.id.prompt((notification) => {
+        const blocked = (notification.isNotDisplayed && notification.isNotDisplayed()) ||
+          (notification.isSkippedMoment && notification.isSkippedMoment());
+
+        if (blocked) {
+          console.warn('Google ID prompt unavailable, switching to token flow. Origin:', window.location.origin, notification.getNotDisplayedReason ? notification.getNotDisplayedReason() : 'unknown');
+          startGoogleTokenFlow(btn);
+        }
+      });
+      return;
+    }
+
+    startGoogleTokenFlow(btn);
+  } catch (e) {
+    toast('Google login failed: ' + e.message, 'error');
+    resetBtn(btn);
+  }
+}
+
+function startGoogleTokenFlow(btn) {
+  try {
+    if (!google.accounts || !google.accounts.oauth2) {
+      toast('Google Sign-In is unavailable right now', 'error');
       resetBtn(btn);
       return;
     }
@@ -1156,7 +1312,7 @@ function doGoogleSignIn(btn) {
         const t = err?.type || '';
         console.error('Google OAuth error callback:', err, 'origin:', window.location.origin);
         if (!t.includes('popup_closed') && !t.includes('access_denied')) {
-          toast('Google error: ' + t, 'error');
+          toast('Google sign-in blocked. Check authorized origins for ' + window.location.origin, 'error');
         }
         resetBtn(btn);
       }
@@ -1164,6 +1320,7 @@ function doGoogleSignIn(btn) {
     tokenClient.requestAccessToken({ prompt: 'select_account' });
   } catch (e) {
     toast('Google login failed: ' + e.message, 'error');
+    console.error('startGoogleTokenFlow failed:', e, 'origin:', window.location.origin);
     resetBtn(btn);
   }
 }

@@ -3597,6 +3597,58 @@ tr:hover td {
   transform: scale(1.1) !important;
 }
 
+/* ── AUTH MODAL LAYOUT + INPUT BEHAVIOR FIX ── */
+#auth-modal .modal-card {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#auth-modal .modal-close {
+  top: 16px !important;
+  right: 16px !important;
+}
+
+#auth-modal .modal-logo {
+  text-align: left;
+  margin: 0 0 1.1rem;
+  padding-right: 56px;
+}
+
+#auth-modal .modal-logo img {
+  height: 50px;
+  width: auto;
+}
+
+#auth-modal .modal-title,
+#auth-modal .modal-sub,
+#auth-modal .modal-divider,
+#auth-modal .form-group label,
+#auth-modal .btn-primary,
+#auth-modal .btn-outline,
+#auth-modal .btn-google,
+#auth-modal p,
+#auth-modal span,
+#auth-modal h2 {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#auth-modal input,
+#auth-modal textarea,
+#auth-modal select {
+  user-select: text;
+  -webkit-user-select: text;
+  caret-color: auto;
+}
+
+#auth-modal #auth-otp-input {
+  font-family: 'Jost', sans-serif;
+}
+
+#auth-modal #auth-otp-input::placeholder {
+  letter-spacing: 6px;
+}
+
 /* ── CAPTCHA / HACKER SHIELD LABEL CLEAN UP ── */
 .captcha-label,
 label[for="captcha"],
@@ -3729,6 +3781,13 @@ label[for="captcha"],
     color: var(--dark) !important;
     width: 100%;
     text-align: left
+  }
+
+  .main-nav .nav-link::before {
+    content: '| ';
+    color: var(--rose);
+    font-weight: 700;
+    margin-right: 2px;
   }
 
   .nav-dropdown-menu {
